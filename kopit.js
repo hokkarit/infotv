@@ -4,6 +4,13 @@
    Yksinkertainen viittaustaulu: mikä koppi kuuluu kenellekin.
    Data haetaan livenä Google Sheetsistä (CSV-vienti) 5 min välein.
 
+   Kunkin kopin nuolen suunta (vasen/oikea) EI tule Sheetsistä eikä
+   koppinumerosta, vaan paikallisesta tiedostosta sijainnit.json, joka
+   listaa suunnan per (näyttötila, koppi) -pari. Osoitteeseen lisätty
+   ?display=<tila> valitsee minkä näyttötilan rivit ovat voimassa (esim.
+   ?display=main); puuttuva/tuntematon arvo käyttää "default"-tilaa.
+   Ks. resolveSijainti() ja README.md.
+
    HUOM tämän tavan hauraudesta: Sheetsin CSV-vientilinkki on
    dokumentoimaton Google-käyttäytymä (ei virallinen API), joka
    toimii koska:
@@ -25,6 +32,7 @@
   const CONFIG = {
     sheetUrl: "https://docs.google.com/spreadsheets/d/1Cn1DqQy1BJHFSoBV2u7cm2awDpaKfhKmBqACV6wa9DY/export?format=csv",
     refreshIntervalMs: 5 * 60 * 1000, // 5 min
+    sijainnitUrl: "sijainnit.json",
   };
 
   // Aloitusdata ennen kuin ensimmäinen haku on ehtinyt onnistua, jottei
@@ -36,15 +44,48 @@
     { koppi: "Koppi 4", teksti: "U12" },
   ];
 
+  // Varakopio tiedostosta sijainnit.json — käytössä ennen kuin tiedosto on
+  // ehtinyt latautua ja jos lataus epäonnistuu kokonaan (ks. loadSijainnit).
+  // Pidä sisältö samana kuin sijainnit.json:ssa.
+  const FALLBACK_SIJAINNIT = [
+    { display: "default", room: "Koppi 1", location: "left" },
+    { display: "default", room: "Koppi 2", location: "left" },
+    { display: "default", room: "Koppi 3", location: "right" },
+    { display: "default", room: "Koppi 4", location: "right" },
+    { display: "main", room: "Koppi 1", location: "left" },
+    { display: "main", room: "Koppi 2", location: "left" },
+    { display: "main", room: "Koppi 3", location: "left" },
+    { display: "main", room: "Koppi 4", location: "left" },
+  ];
+
   const STATE = {
     data: FALLBACK_DATA,
+    sijaintiLookup: buildSijaintiLookup(FALLBACK_SIJAINNIT),
     consecutiveFailures: 0,
+    // Tosi kun ensimmäinen refreshData() (Sheets-koppidata) on ehtinyt joko
+    // onnistua tai epäonnistua kertaalleen. Ennen sitä renderLoading() pitää
+    // "Haetaan dataa…" -tekstin näkyvissä — loadSijainnit() ei saa piirtää
+    // sen yli välikädessä, vaikka se (pieni paikallinen tiedosto) ehtisikin
+    // latautua ennen Sheets-hakua (ks. loadSijainnit).
+    initialLoadDone: false,
   };
 
   const el = {
     table: document.getElementById("koppiTable"),
     statusBanner: document.getElementById("koppiStatusBanner"),
   };
+
+  // -------------------- Näyttötila (?display=) --------------------
+
+  // Eri näytöillä (esim. hallin eri sisäänkäynneillä) sama koppi voidaan
+  // haluta osoittaa eri suuntaan, koska "vasen"/"oikea" riippuu siitä mistä
+  // suunnasta katsotaan. Mikä nuoli mihinkin koppiin piirretään per
+  // näyttötila, määritellään tiedostossa sijainnit.json (ei koodissa) —
+  // ks. resolveSijainti(). Osoitteeseen lisätty ?display=<tila> valitsee
+  // rivin; puuttuva tai tuntematon arvo käyttää "default"-tilaa.
+  // Esim. ?display=main -> kaikki kopit vasemmalle (ks. sijainnit.json).
+  // Ks. dokumentaatio README.md:ssä.
+  const DISPLAY_MODE = (new URLSearchParams(location.search).get("display") || "").trim() || "default";
 
   // Staattiset, luotetut SVG-merkkijonot (ei koskaan käyttäjä-/rajapintadataa
   // interpoloituna) — turvallista käyttää innerHTML:llä juuri siksi.
@@ -116,26 +157,109 @@
     return rows;
   }
 
-  // Muuntaa CSV-rivit näyttödataksi. Odotettu muoto (ks. taulukon otsikko
-  // "Haluttu teksti"): ensimmäinen sarake "Koppi N", toinen näytettävä teksti.
-  // Suunta (nuolen suunta) ei tule taulukosta — se päätellään koppinumerosta
-  // (1-2 = vasen, muut = oikea), koska taulukossa ei ole sille saraketta.
+  // Muuntaa CSV-rivit näyttödataksi. Odotettu muoto: jokin sarake "Koppi N",
+  // vieressä näytettävä teksti. Nuolen suunta ei tule tästä taulukosta — se
+  // ratkaistaan renderöintihetkellä sijainnit.json:in ja nykyisen näyttötilan
+  // perusteella (ks. resolveSijainti).
+  //
+  // HUOM: ei oleteta minkään TIETYN rivin (esim. ensimmäisen) olevan
+  // otsikkorivi joka pitäisi ohittaa — käydään KAIKKI rivit läpi ja
+  // poimitaan ne joiden ensimmäinen sarake täsmää "Koppi N" -muotoon.
+  // Otsikkorivi (esim. "Haluttu teksti") ei koskaan täsmää tähän, joten se
+  // ohittuu automaattisesti riippumatta siitä onko sellaista rivillä 1 vai
+  // ei ollenkaan — jos otsikkorivin sijainti oletettaisiin kiinteäksi,
+  // sen poistaminen/lisääminen taulukosta siirtäisi kaikki muut rivit ja
+  // pudottaisi vahingossa aidon datarivin pois (näin kävi kerran koppi
+  // 1:lle kun otsikkorivi poistettiin taulukosta).
   function csvToKoppiData(rows) {
-    const dataRows = rows.slice(1); // ensimmäinen rivi on otsikko
     const parsed = [];
-    dataRows.forEach((r) => {
+    rows.forEach((r) => {
       const koppi = (r[0] || "").trim();
       const teksti = (r[1] || "").trim();
       const m = /^Koppi\s+(\d+)$/i.exec(koppi);
-      if (!m) return; // ohitetaan tyhjät/ylimääräiset rivit hiljaa
-      const n = Number(m[1]);
-      parsed.push({ koppi, teksti, sijainti: n <= 2 ? "left" : "right" });
+      if (!m) return; // ohitetaan otsikko-/tyhjät/ylimääräiset rivit hiljaa
+      parsed.push({ koppi, teksti });
     });
     assertShape(
       parsed.length > 0,
-      `Taulukosta ei löytynyt yhtään "Koppi N" -muotoista riviä (${dataRows.length} riviä luettu).`
+      `Taulukosta ei löytynyt yhtään "Koppi N" -muotoista riviä (${rows.length} riviä luettu).`
     );
     return parsed;
+  }
+
+  // -------------------- Koppien sijainnit (sijainnit.json) --------------------
+
+  // Rakentaa hakurakenteen "display|room" -> "left"/"right" sijainnit.json:in
+  // (tai FALLBACK_SIJAINNIT:in) riveistä, jotta resolveSijainti() ei joudu
+  // silmukoimaan koko listaa jokaista koppiriviä kohti.
+  function buildSijaintiLookup(rows) {
+    const map = new Map();
+    rows.forEach((r) => map.set(`${r.display}|${r.room}`, r.location));
+    return map;
+  }
+
+  function sijainnitJsonToRows(json) {
+    assertShape(Array.isArray(json), "sijainnit.json: odotettiin taulukkoa.");
+    json.forEach((r, i) => {
+      assertShape(
+        r && typeof r.display === "string" && typeof r.room === "string" &&
+          (r.location === "left" || r.location === "right"),
+        `sijainnit.json[${i}] puuttuu odotettuja kenttiä tai location ei ole "left"/"right": ${JSON.stringify(r)}`
+      );
+    });
+    return json;
+  }
+
+  // Ratkaisee mihin suuntaan koppi osoitetaan nykyisellä näyttötilalla
+  // (DISPLAY_MODE, ks. yllä). Varaketjut jos jokin puuttuu:
+  //   1) täsmäävä (DISPLAY_MODE, room) sijainnit.json:sta
+  //   2) sama koppi "default"-tilasta (jos DISPLAY_MODE oli joku muu eikä
+  //      löytynyt sille omaa riviä)
+  //   3) koppinumeroon perustuva vanha nyrkkisääntö (1-2 = vasen, muut =
+  //      oikea) — vain jos koppia ei löydy sijainnit.json:sta lainkaan
+  //      (esim. koppitaulukkoon on lisätty uusi koppi jota ei ole vielä
+  //      lisätty sijainnit.json:iin), jottei nuoli jää kokonaan piirtämättä.
+  function resolveSijainti(room) {
+    const lookup = STATE.sijaintiLookup;
+
+    const own = lookup.get(`${DISPLAY_MODE}|${room}`);
+    if (own) return own;
+
+    if (DISPLAY_MODE !== "default") {
+      const fallback = lookup.get(`default|${room}`);
+      if (fallback) {
+        console.warn(
+          `[pukukoppi/kopit] Näyttötilalle "${DISPLAY_MODE}" ei löytynyt sijaintia koppille "${room}" — käytetään "default"-tilan sijaintia.`
+        );
+        return fallback;
+      }
+    }
+
+    const m = /(\d+)/.exec(room);
+    const n = m ? Number(m[1]) : NaN;
+    console.warn(
+      `[pukukoppi/kopit] Koppille "${room}" ei löytynyt sijaintia sijainnit.json:sta (näyttötila "${DISPLAY_MODE}") — arvataan koppinumeron perusteella.`
+    );
+    return !Number.isNaN(n) && n <= 2 ? "left" : "right";
+  }
+
+  async function loadSijainnit() {
+    try {
+      const res = await fetch(CONFIG.sijainnitUrl, { cache: "no-store" });
+      if (!res.ok) throw new Error(`HTTP ${res.status} @ ${CONFIG.sijainnitUrl}`);
+      const json = sijainnitJsonToRows(await res.json());
+      STATE.sijaintiLookup = buildSijaintiLookup(json);
+      // Piirretään uudelleen VAIN jos koppitaulukko on jo näkyvissä — muuten
+      // tämä (yleensä nopeampi kuin Sheets-haku) piirtäisi FALLBACK_DATA:n
+      // "Haetaan dataa…" -tekstin päälle ennen kuin refreshData() on edes
+      // ehtinyt yrittää kertaakaan.
+      if (STATE.initialLoadDone) render();
+    } catch (err) {
+      // Ei kriittinen: FALLBACK_SIJAINNIT (asetettu jo STATE:n alustuksessa)
+      // jää voimaan, joten nuolet piirtyvät silti, vaikka ehkä väärään suuntaan
+      // jos joku näyttötila on muokannut vain sijainnit.json:ia.
+      console.error("[pukukoppi/kopit] sijainnit.json:in lataus epäonnistui, käytetään sisäänrakennettua varakonfiguraatiota:", err);
+    }
   }
 
   // -------------------- Data haku --------------------
@@ -180,6 +304,10 @@
       }
       // Näytetään joka tapauksessa viimeisin tunnettu (tai aloitus-) data.
       render();
+    } finally {
+      // Vasta nyt "Haetaan dataa…" -aloitusteksti on varmasti korvattu
+      // oikealla (tai FALLBACK_DATA:n) sisällöllä — ks. loadSijainnit().
+      STATE.initialLoadDone = true;
     }
   }
 
@@ -213,7 +341,7 @@
 
     const sijaintiEl = document.createElement("div");
     sijaintiEl.className = "koppi-cell koppi-cell-sijainti";
-    sijaintiEl.innerHTML = row.sijainti === "left" ? ARROW_LEFT_SVG : ARROW_RIGHT_SVG;
+    sijaintiEl.innerHTML = resolveSijainti(row.koppi) === "left" ? ARROW_LEFT_SVG : ARROW_RIGHT_SVG;
     div.appendChild(sijaintiEl);
 
     return div;
@@ -246,6 +374,7 @@
   // -------------------- Käynnistys --------------------
 
   renderLoading(); // ekalla kerralla näytetään latausteksti, ei vielä dataa
+  loadSijainnit(); // ei kriittisen tiellä: render() kutsutaan jo refreshData():sta
   refreshData();
   setInterval(refreshData, CONFIG.refreshIntervalMs);
 })();

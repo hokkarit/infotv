@@ -36,7 +36,19 @@
 
     // Mitkä liikuntapaikat näytetään pystypalstoina, ja missä järjestyksessä.
     // Jätä tyhjäksi [] jos haluat näyttää KAIKKI aktiiviset paikat rajapinnasta.
+    // HUOM: nämä nimet ovat täsmäysavaimia Hokkarit-rajapinnan dataan
+    // (STATE.lps[].name) — EI pelkkää näyttötekstiä. Älä lyhennä näitä; jos
+    // haluat palstan otsikkoon lyhyemmän tekstin, käytä alla olevaa
+    // displayNames-mäppäystä sen sijaan.
     resourceOrder: ["Hämeenkyrön Jäähalli", "Hokkarisali"],
+
+    // Näytettävä (lyhyempi) nimi palstan otsikkoon, jos eri kuin rajapinnan
+    // antama nimi. Avain on rajapinnan nimi (sama kuin resourceOrder:issa),
+    // arvo mitä TV:llä näytetään. Paikka joka puuttuu tästä näyttää oman
+    // rajapintanimensä sellaisenaan (ks. resourceDisplayName()).
+    displayNames: {
+      "Hämeenkyrön Jäähalli": "Jäähalli",
+    },
 
     // Kuinka usein päivän varaukset haetaan uudelleen (ms).
     refreshIntervalMs: 25 * 60 * 1000, // 25 min
@@ -408,6 +420,14 @@
 
   // -------------------- Renderöinti --------------------
 
+  // Palauttaa rajapinnan liikuntapaikan nimelle näytettävän tekstin —
+  // CONFIG.displayNames:in mukaisen lyhennyksen jos sellainen on määritelty,
+  // muuten rajapinnan nimen sellaisenaan. Käytä tätä VAIN näyttämiseen; älä
+  // käytä täsmäykseen (siihen CONFIG.resourceOrder ja lp.name suoraan).
+  function resourceDisplayName(lp) {
+    return CONFIG.displayNames[lp.name] || lp.name;
+  }
+
   function renderBoard() {
     const now = getEffectiveNow();
     const { rangeStart, rangeEnd } = computeRange(now);
@@ -469,7 +489,7 @@
 
       const header = document.createElement("div");
       header.className = "resource-col-header";
-      header.textContent = lp.name;
+      header.textContent = resourceDisplayName(lp);
       col.appendChild(header);
 
       const body = document.createElement("div");
