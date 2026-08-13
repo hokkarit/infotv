@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="fi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Kerro selaimelle että sivu on tarkoituksella tumma, jotta esim. Androidin/
+     Chromen "pakotettu tumma teema" ei arvaile värejä uusiksi ja piilota
+     tekstiä tapahtumalaatikoiden sisältä. -->
+<meta name="color-scheme" content="dark">
+<title>Hämeenkyrön Jäähalli — Tämän päivän vuorot</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <div id="koppiBoard">
+    <h1 id="koppiTitle">Pukukoppijako</h1>
+    <div id="koppiTable"></div>
+    <div id="koppiStatusBanner" hidden></div>
+  </div>
+
+  <div id="board">
+    <div id="hourRail"></div>
+    <div id="columns"></div>
+    <div id="nowLine"><span id="nowLineLabel"></span></div>
+  </div>
+
+  <div id="statusBanner" hidden></div>
+  <div id="testDateBanner" hidden></div>
+
+  <script src="kopit.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

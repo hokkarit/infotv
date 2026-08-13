@@ -1,0 +1,435 @@
+/* ============================================================
+   Hämeenkyrön Jäähalli — infonäytön tyylit
+   Suunniteltu pystyasentoiselle FullHD-näytölle (1080 x 1920),
+   mutta skaalautuu vh/vw-yksiköillä muihinkin resoluutioihin.
+   ============================================================ */
+
+:root {
+  --bg: #0b1220;
+  --bg-panel: #121b2e;
+  --bg-panel-alt: #16223a;
+  --grid-line: #2a3752;
+  --text-main: #f4f7fb;
+  --text-dim: #93a3c2;
+  --accent: #4da3ff;
+
+  --status-waiting-bg: #6b5b12;
+  --status-waiting-fg: #ffe58a;
+  --status-reserved-bg: #1f5c33;
+  --status-reserved-fg: #b9f6c9;
+  --status-freed-bg: #6b1f27;
+  --status-freed-fg: #ffb3ba;
+
+  --now-line: #ff4d4f;
+
+  --status-h: 4vh;
+  --col-header-h: 2.6vh;
+  --hour-rail-w: 8vw;
+
+  /* Palstakohtaiset taustavärit, jotta vierekkäiset liikuntapaikat
+     erottuvat toisistaan myös silloin kun niissä ei ole tapahtumia. */
+  --col-bg-1: #0e1a2c;
+  --col-bg-2: #1a1530;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  /* Varmuuden vuoksi vierittävissä (ei "hidden") — TV:llä 100dvh vastaa aina
+     tarkalleen näyttöä eikä vierittämistä koskaan tarvita, mutta jos jonkin
+     laitteen selain silti arvioi korkeuden väärin, sisältö on tällä tavalla
+     yhä tavoitettavissa sen sijaan että se katoaisi kokonaan piiloon. */
+  overflow: auto;
+  background: var(--bg);
+  color: var(--text-main);
+  font-family: "Segoe UI", Arial, sans-serif;
+}
+
+body {
+  /* Koppijako (#koppiBoard) yllä kompaktina, aikajana (#board) täyttää
+     lopun tilan. Flexbox eikä kiinteä calc()-korkeus, koska #koppiBoard:n
+     todellinen korkeus riippuu sen sisällöstä (rivien määrä) — flex hoitaa
+     tilanjaon oikein riippumatta siitä täsmääkö arvattu korkeus todelliseen. */
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---------------- Aikataulualue ---------------- */
+
+#board {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0; /* jotta flex-lapsi voi kutistua sisältöään pienemmäksi tarvittaessa */
+  display: flex;
+  /* Sama leveys JA sama "kortti"-ilme kuin koppijakotaululla (#koppiTable):
+     pyöristetyt reunat, sama reunaviiva, keskitettynä. overflow:hidden
+     tarvitaan jotta lapsielementtien (esim. palstojen otsikkorivin)
+     neliskanttiset kulmat eivät pistä pyöristyksen ulkopuolelle. */
+  max-width: 900px;
+  width: 100%;
+  margin: 1vh auto;
+  border: 1px solid var(--grid-line);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+#hourRail {
+  position: relative;
+  width: var(--hour-rail-w);
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  border-right: 2px solid var(--grid-line);
+  background: var(--bg-panel);
+}
+
+/* Tyhjä täyte samalla korkeudella kuin palstojen otsikot (.resource-col-header),
+   jotta kellonajat alkavat täsmälleen siitä missä palstojenkin sisältö alkaa.
+   Sama taustaväri kuin otsikkorivillä (--bg-panel-alt), jotta koko yläreuna
+   näyttää yhtenäiseltä nauhalta. */
+.hour-rail-spacer {
+  flex: none;
+  height: var(--col-header-h);
+  background: var(--bg-panel-alt);
+  border-bottom: 1px solid var(--grid-line);
+}
+
+.hour-rail-body {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.hour-mark {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1px solid var(--grid-line);
+  padding-left: 0.8vw;
+  font-size: 1.2vh;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  transform: translateY(-1px);
+}
+
+#columns {
+  position: relative;
+  flex: 1 1 auto;
+  display: flex;
+  height: 100%;
+}
+
+.resource-col {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  border-right: 1px solid var(--grid-line);
+  height: 100%;
+}
+
+.resource-col:last-child { border-right: none; }
+
+.resource-col:nth-child(odd)  { background: var(--col-bg-1); }
+.resource-col:nth-child(even) { background: var(--col-bg-2); }
+
+.resource-col-header {
+  flex: none;
+  height: var(--col-header-h);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.4vh 0.8vw;
+  /* Sama fonttityyli kuin koppitaulun otsikkorivillä (.koppi-row-header),
+     jotta molemmat osiot näyttävät yhtenäisiltä. */
+  font-size: 1.1vh;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  text-align: center;
+  color: var(--text-dim);
+  background: var(--bg-panel-alt);
+  border-bottom: 1px solid var(--grid-line);
+  z-index: 3;
+}
+
+.resource-col-body {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.hour-grid-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1px solid var(--grid-line);
+}
+
+.hour-grid-line.half {
+  border-top: 1px dashed var(--grid-line);
+  opacity: 0.5;
+}
+
+/* ---------------- Tapahtumat ---------------- */
+
+.event-block {
+  position: absolute;
+  border-radius: 4px;
+  /* Kiinteä pikselipadding, ei vh/vw-suhteellinen — muuten padding syö
+     verrannollisesti liikaa tilaa matalilla (esim. mobiili-) näytöillä. */
+  padding: 2px 6px;
+  /* EI overflow:hidden — korkeus on min-height (ks. app.js), joten laatikko
+     kasvaa tarvittaessa täyteen otsikon vaatimaan korkeuteen sen sijaan että
+     ylimenevä osa leikkautuisi kesken. Otsikolla on omat 2-rivin rajansa
+     (ks. .ev-title), joten teksti ei silti kasva rajattomasti. */
+  border-left: 4px solid transparent;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.35);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+}
+
+.event-block .ev-title {
+  /* clamp(min, suositeltu, max): minimi on tarkoituksella melko korkea
+     (ei pienempi kuin 15px), koska otsikko on tärkein tieto laatikossa
+     eikä sen pidä koskaan kutistua epäselväksi pienilläkään resoluutioilla. */
+  font-size: clamp(15px, 1.8vh, 22px);
+  font-weight: 700;
+  line-height: 1.2;
+  /* Otsikko on tärkein tieto laatikossa — sallitaan sen rivittyä kahdelle
+     riville ennen katkaisua, sen sijaan että se katkeaisi heti yhden
+     rivin jälkeen kapeissa (esim. jaetun jään) laatikoissa. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  word-break: break-word;
+}
+
+.event-block .ev-time {
+  display: flex;
+  align-items: center;
+  gap: 0.3em;
+  font-size: clamp(10px, 1.4vh, 16px);
+  opacity: 0.9;
+  font-variant-numeric: tabular-nums;
+  margin-top: 1px;
+  white-space: nowrap;
+}
+
+.event-block .ev-time-icon {
+  width: 1em;
+  height: 1em;
+  flex: none;
+}
+
+/* "Jaettu N/M" -badge poistettu kokonaan tilan säästämiseksi — jaettu jää
+   näkyy jo siitä että laatikoita on vierekkäin (ks. app.js splitTitle). */
+
+.event-block.compact .ev-title {
+  font-size: clamp(15px, 1.5vh, 18px);
+}
+
+/* Kaikki tapahtumat samalla värillä riippumatta tilasta (lp-reserved/
+   lp-waiting/lp-freed) — tilaa ei enää eroteta visuaalisesti. */
+.status-reserved, .status-waiting, .status-freed {
+  background: var(--bg-panel-alt);
+  color: var(--text-main);
+  border-left-color: var(--accent);
+}
+
+.empty-message {
+  position: absolute;
+  top: 45%;
+  left: 0;
+  right: 0;
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 2.4vh;
+}
+
+/* ---------------- "Nyt"-aikajanaviiva ---------------- */
+
+#nowLine {
+  position: absolute;
+  /* Alkaa vasta tuntipalkin jälkeen (ei sen päältä), jotta kellonajat
+     (07:00, 08:00...) pysyvät näkyvissä vasemmalla eikä viiva peitä niitä. */
+  left: var(--hour-rail-w);
+  right: 0;
+  height: 0;
+  border-top: 2px solid var(--now-line);
+  z-index: 5;
+  pointer-events: none;
+  box-shadow: 0 0 1.2vh rgba(255,77,79,0.6);
+}
+
+#nowLineLabel {
+  position: absolute;
+  /* Ei enää erillistä palloa (#nowLine::before poistettu) — kellonaikamerkki
+     ITSE on nyt viivan alkupään merkki. left:0 = viivan oma alkukohta, ja
+     transform vetää merkin omalla leveydellään/korkeudellaan taaksepäin
+     tuntipalkin puolelle ja keskittää sen pystysuunnassa viivan kohdalle —
+     näin merkki istuu aina tarkalleen viivan alussa riippumatta tekstin
+     pituudesta, eikä osu palstojen tapahtumien päälle. */
+  left: 0;
+  top: 0;
+  transform: translate(-100%, -50%);
+  background: var(--now-line);
+  color: #fff;
+  font-size: 1vh;
+  font-weight: 700;
+  padding: 0.1vh 0.6vh;
+  border-radius: 0.5vh;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------------- Tilapalkki (virheilmoitukset) ----------------
+   Sama tyyli kahdelle eri bannerille (#statusBanner = aikajana,
+   #koppiStatusBanner = koppijako) — eri id:t koska molemmat voivat
+   tarvittaessa näyttää eri viestin samaan aikaan samalla sivulla. */
+
+#statusBanner, #koppiStatusBanner {
+  min-height: var(--status-h);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 0.5vh 2vh;
+  font-size: 1.9vh;
+  color: var(--status-waiting-fg);
+  background: #3a2f0a;
+  border-top: 1px solid var(--grid-line);
+}
+
+#statusBanner[hidden], #koppiStatusBanner[hidden] { display: none; }
+
+/* Vakavampi taso: rajapinnan rakenne on muuttunut, vaatii ylläpidon
+   toimenpiteitä — selvästi eri (punainen) väri kuin tavallinen
+   väliaikainen yhteysongelma-varoitus. */
+#statusBanner.status-banner-error, #koppiStatusBanner.status-banner-error {
+  color: var(--status-freed-fg);
+  background: #4a1116;
+  font-weight: 600;
+}
+
+/* Huomiomerkki kun ?date=-parametrilla on pakotettu testipäivä käyttöön —
+   selvästi eri väri (violetti/pinkki) kuin virheilmoituspalkki, jottei
+   niitä voi sekoittaa. Kiinteä yläkulmaan, ei vie tilaa aikajanalta. */
+#testDateBanner {
+  position: fixed;
+  top: 0;
+  right: 0;
+  z-index: 10;
+  padding: 0.5vh 1.2vh;
+  font-size: 1.6vh;
+  font-weight: 700;
+  color: #2a0033;
+  background: #ff7ae0;
+  border-bottom-left-radius: 0.6vh;
+  box-shadow: 0 0 1vh rgba(0, 0, 0, 0.4);
+}
+
+#testDateBanner[hidden] { display: none; }
+
+/* ---------------- Pukukoppijako (yläosa, kompakti) ---------------- */
+
+#koppiBoard {
+  flex: none; /* vain sisällön vaatima korkeus, ei täytä koko ruutua enää */
+  padding: 1.2vh 2vw;
+  background: var(--bg);
+  /* Ei omaa border-bottomia — aikajanan oma otsikkorivi (.resource-col-header
+     / .hour-rail-spacer) erottaa osiot jo riittävästi, eikä synny kahta
+     lähekkäistä viivaa rajapinnalle. */
+}
+
+#koppiTitle {
+  margin: 0 0 0.8vh 0;
+  font-size: 1.9vh;
+  font-weight: 700;
+  text-align: center;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+#koppiTable {
+  max-width: 900px;
+  margin: 0 auto;
+  border: 1px solid var(--grid-line);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.koppi-row {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr 1.6fr;
+  border-bottom: 1px solid var(--grid-line);
+}
+
+.koppi-row:last-child { border-bottom: none; }
+
+.koppi-row:nth-child(odd) { background: var(--bg-panel); }
+.koppi-row:nth-child(even) { background: var(--col-bg-1); }
+
+.koppi-row-header {
+  background: var(--bg-panel-alt) !important;
+  font-weight: 700;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 1.1vh;
+}
+
+.koppi-cell {
+  padding: 0.5vh 1.2vw;
+  font-size: 1.6vh;
+  color: var(--text-main);
+  display: flex;
+  align-items: center;
+}
+
+.koppi-row-header .koppi-cell {
+  padding: 0.4vh 1.2vw;
+  /* .koppi-cell asettaa oman värinsä joka muuten voittaisi .koppi-row-headerin
+     perityn värin — ylikirjoitetaan tässä eksplisiittisesti. */
+  color: var(--text-dim);
+}
+
+.koppi-cell-koppi {
+  font-weight: 700;
+  /* Sama väri kuin joukkuesarakkeella (.koppi-cell:n oletus, var(--text-main)) —
+     ei enää erottuvaa korostusväriä, jotta koko rivi näyttää yhtenäiseltä. */
+  color: var(--text-main);
+}
+
+.koppi-cell-sijainti {
+  /* Sama väri kuin joukkuesarakkeella — SVG-ikoni käyttää stroke="currentColor",
+     joten se seuraa tätä automaattisesti. */
+  color: var(--text-main);
+}
+
+.koppi-dir-icon {
+  width: 1.8vh;
+  height: 1.8vh;
+  flex: none;
+}
+
+.koppi-loading {
+  padding: 1.5vh 1.2vw;
+  text-align: center;
+  font-size: 1.4vh;
+  color: var(--text-dim);
+}
+
+#koppiStatusBanner {
+  margin-top: 0.6vh;
+}
+
+/* ---------------- Legenda-värivihjeet paletissa yllä bodyn (valinnainen) ---------------- */
