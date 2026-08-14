@@ -586,8 +586,20 @@
       return;
     }
     el.nowLine.style.display = "block";
-    const top = pctOf(now, rangeStart, rangeEnd);
-    el.nowLine.style.top = `${top}%`;
+    const pct = pctOf(now, rangeStart, rangeEnd);
+
+    // pct on prosenttiosuus SISÄLTÖalueesta (otsikkorivin alapuolelta, ks.
+    // hour-rail-body / resource-col-body — sama alue johon tuntimerkit ja
+    // tapahtumatkin asemoidaan). #nowLine on kuitenkin #board:n lapsi, joka
+    // sisältää myös otsikkorivin, joten pelkkä "${pct}%" veti viivan liian
+    // ylös (osittain otsikon päälle). Lasketaan siis pikselikohtainen
+    // sijainti niin että 0 % osuu otsikkorivin alareunaan, ei #board:n
+    // yläreunaan.
+    const boardRect = el.board.getBoundingClientRect();
+    const bodyEl = el.hourRail.querySelector(".hour-rail-body");
+    const bodyRect = (bodyEl || el.board).getBoundingClientRect();
+    const topPx = (bodyRect.top - boardRect.top) + (pct / 100) * bodyRect.height;
+    el.nowLine.style.top = `${topPx}px`;
     el.nowLineLabel.textContent = fmtHM(now);
   }
 
