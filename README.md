@@ -63,10 +63,12 @@ Tiedoston muoto — taulukko `{ display, room, location }`-rivejä:
   { "display": "default", "room": "Koppi 2", "location": "left" },
   { "display": "default", "room": "Koppi 3", "location": "right" },
   { "display": "default", "room": "Koppi 4", "location": "right" },
+  { "display": "default", "room": "Koppi 5", "location": "left" },
   { "display": "main",    "room": "Koppi 1", "location": "left" },
   { "display": "main",    "room": "Koppi 2", "location": "left" },
   { "display": "main",    "room": "Koppi 3", "location": "left" },
-  { "display": "main",    "room": "Koppi 4", "location": "left" }
+  { "display": "main",    "room": "Koppi 4", "location": "left" },
+  { "display": "main",    "room": "Koppi 5", "location": "left" }
 ]
 ```
 
