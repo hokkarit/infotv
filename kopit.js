@@ -70,6 +70,12 @@
     initialLoadDone: false,
   };
 
+  // Tosi kun "koppijako:initial-load"-tapahtuma on jo laukaistu kertaalleen
+  // (ks. refreshData) — app.js odottaa sitä ennen "nyt"-viivan näyttämistä,
+  // eikä sitä tarvitse (eikä pidä) laukaista uudelleen myöhemmillä,
+  // ajastetuilla päivityksillä.
+  let koppijakoReadyFired = false;
+
   const el = {
     table: document.getElementById("koppiTable"),
     statusBanner: document.getElementById("koppiStatusBanner"),
@@ -308,6 +314,19 @@
       // Vasta nyt "Haetaan dataa…" -aloitusteksti on varmasti korvattu
       // oikealla (tai FALLBACK_DATA:n) sisällöllä — ks. loadSijainnit().
       STATE.initialLoadDone = true;
+
+      // Ilmoitetaan muille skripteille (app.js) että koppijakotaulun
+      // ensimmäinen lataus on asettunut lopulliseen korkeuteensa — se
+      // vaikuttaa flexissä #board:n (aikajanan) käytettävissä olevaan
+      // tilaan, ja app.js odottaa tätä ennen "nyt"-viivan näyttämistä
+      // ettei se väläh­dä hetkeksi väärään kohtaan. Tapahtuma kannattaa
+      // laukaista vain kerran (myös virhetapauksessa) — myöhemmät
+      // päivitykset (refreshInterval) eivät enää muuta korkeutta yhtä
+      // rajusti kuin "Haetaan dataa…" -> oikea rivimäärä.
+      if (!koppijakoReadyFired) {
+        koppijakoReadyFired = true;
+        window.dispatchEvent(new CustomEvent("koppijako:initial-load"));
+      }
     }
   }
 

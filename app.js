@@ -63,6 +63,15 @@
     // eikä ole enää erikseen asetettavissa.
     dayStartHour: 7,
 
+    // Yläpuolella oleva koppijakotaulu (kopit.js) lataa oman datansa
+    // itsenäisesti ja muuttaa kokoaan kun "Haetaan dataa…" -teksti korvautuu
+    // oikealla rivimäärällä — se vie/vapauttaa tilaa #board:lta (flex),
+    // mikä liikuttaisi "nyt"-viivan pikselikohtaa. Odotetaan siis koppijaon
+    // ensimmäistä valmistumista ennen kuin viiva näytetään ensi kertaa (ks.
+    // "koppijako:initial-load" alempana), jottei sitä näy hetkeksi väärässä
+    // kohdassa. Aikakatkaisu varmuudeksi, jos kopit.js puuttuu/jumiutuu.
+    koppijakoWaitTimeoutMs: 4000,
+
     // Turvaverkko: lataa koko sivu uudelleen kerran vuorokaudessa hiljaisena
     // hetkenä, jotta pitkään auki ollut selain ei kerää muistivuotoja.
     // Aseta null jos et halua automaattista uudelleenlatausta.
@@ -576,7 +585,19 @@
     return block;
   }
 
+  // Tosi kun koppijakotaulu (kopit.js) on ilmoittanut asettuneensa lopulliseen
+  // korkeuteensa (tai aikakatkaisu on lauennut) — ks. koppijakoWaitTimeoutMs
+  // ja waitForKoppijako() alempana. Kunnes tämä on tosi, "nyt"-viiva
+  // pidetään piilossa vaikka data olisi muuten valmis, ettei se väläh­dä
+  // hetkeksi väärään pikselikohtaan #board:n vielä muuttuessa kokoaan.
+  let koppijakoSettled = false;
+
   function positionNowLine(now, rangeStart, rangeEnd) {
+    if (!koppijakoSettled) {
+      el.nowLine.style.display = "none";
+      return;
+    }
+
     // Aikajana piirretään aina kuluvan päivän loppuun (23:59:59) asti
     // (ks. computeRange), joten "nyt"-viiva näkyy koko sen näkyvän
     // aikavälin ajan — piilotetaan vain jos ollaan aidosti sen ulkopuolella
@@ -650,6 +671,53 @@
     }, 150);
   }
 
+  // Laskee "nyt"-viivan uudelleen tämänhetkisen ajan/koon mukaan — käytetään
+  // sekä alla olevasta ResizeObserverista että koppijaon valmistumisesta.
+  function refreshNowLine() {
+    if (!STATE.activeResources) return;
+    const now = getEffectiveNow();
+    const { rangeStart, rangeEnd } = computeRange(now);
+    positionNowLine(now, rangeStart, rangeEnd);
+  }
+
+  // #board:n korkeus ei ole kiinteä: se saa flex-tilaa sen mukaan paljonko
+  // yläpuolella oleva koppijakotaulu (kopit.js, oma erillinen datahaku) vie.
+  // "Nyt"-viivan pikselikohta lasketaan #board:n SEN HETKISEN korkeuden
+  // mukaan (ks. positionNowLine) — jos koppitaulu latautuu myöhemmin ja
+  // muuttaa kokoaan (esim. "Haetaan dataa…" -> N riviä), #board kutistuu/
+  // kasvaa ilman että kumpikaan skripti tietää toisesta. koppijakoSettled-
+  // odotus (ks. waitForKoppijako alla) hoitaa ENSIMMÄISEN näyttökerran; tämä
+  // ResizeObserver on varmuuden vuoksi sen jälkeenkin, jos #board:n koko
+  // muuttuu jostain muusta syystä (esim. koppijaon rivimäärä vaihtuu
+  // myöhemmällä päivityksellä).
+  if (window.ResizeObserver) {
+    let boardResizeDebounce = null;
+    new ResizeObserver(() => {
+      clearTimeout(boardResizeDebounce);
+      boardResizeDebounce = setTimeout(refreshNowLine, 30);
+    }).observe(el.board);
+  }
+
+  // Odottaa koppijakotaulun (kopit.js) ensimmäisen latauksen valmistumista
+  // ennen kuin "nyt"-viiva päästetään näkyviin ensimmäistä kertaa (ks.
+  // koppijakoSettled / positionNowLine). kopit.js laukaisee
+  // "koppijako:initial-load"-tapahtuman heti kun se on piirtänyt joko
+  // oikean datan tai virhetilanteen — molemmissa tapauksissa #board:n koko
+  // on siinä vaiheessa asettunut lopulliseksi. Aikakatkaisu varmistaa
+  // ettei viiva jää piiloon ikuisesti, jos kopit.js puuttuu sivulta tai
+  // sen lataus jumiutuu kokonaan (esim. verkko ei koskaan aikakatkea).
+  function waitForKoppijako() {
+    let settled = false;
+    const settle = () => {
+      if (settled) return;
+      settled = true;
+      koppijakoSettled = true;
+      refreshNowLine();
+    };
+    window.addEventListener("koppijako:initial-load", settle, { once: true });
+    setTimeout(settle, CONFIG.koppijakoWaitTimeoutMs);
+  }
+
   function start() {
     STATE.dateOverride = parseDateOverride();
     if (STATE.dateOverride) {
@@ -661,6 +729,7 @@
     }
 
     refreshData();
+    waitForKoppijako();
 
     window.addEventListener("resize", onResize);
     window.addEventListener("orientationchange", onResize);

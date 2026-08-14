@@ -259,6 +259,11 @@ body {
 
 #nowLine {
   position: absolute;
+  /* Piilossa oletuksena: ilman tätä viiva näkyisi hetken sivun latautuessa
+     oletuskohdassaan (top:0) ennen kuin JS ehtii asemoida sen oikeaan
+     kohtaan, mikä näkyy rumana hyppynä. positionNowLine() näyttää viivan
+     (display: block) vasta kun se on jo oikealla paikallaan. */
+  display: none;
   /* Alkaa vasta tuntipalkin jälkeen (ei sen päältä), jotta kellonajat
      (07:00, 08:00...) pysyvät näkyvissä vasemmalla eikä viiva peitä niitä. */
   left: var(--hour-rail-w);
