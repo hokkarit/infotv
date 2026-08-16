@@ -218,10 +218,22 @@
   // esim. "Hokkarit-U10 1/2" -> { title: "Hokkarit-U10", badge: "puolikas 1/2" }
   function splitTitle(rawTitle) {
     const m = rawTitle.match(/^(.*?)[\s]+(\d+)\/(\d+)\s*$/);
-    if (!m) return { title: rawTitle.trim(), badge: null };
+    if (!m) return { title: stripHokkaritPrefix(rawTitle.trim()), badge: null };
     const [, base, num, den] = m;
-    if (num === den && den === "1") return { title: base.trim(), badge: null };
-    return { title: base.trim(), badge: `jaettu ${num}/${den}` };
+    if (num === den && den === "1") {
+      return { title: stripHokkaritPrefix(base.trim()), badge: null };
+    }
+    return {
+      title: stripHokkaritPrefix(base.trim()),
+      badge: `jaettu ${num}/${den}`,
+    };
+  }
+
+  // Jos otsikko on PELKÄSTÄÄN "Hokkarit-<joukkue>" (esim. "Hokkarit-U10"),
+  // pudotetaan "Hokkarit-" pois turhana toistona (kaikki vuorot ovat Hokkarit ry:n).
+  function stripHokkaritPrefix(title) {
+    const m = title.match(/^Hokkarit-(\S+)$/);
+    return m ? m[1] : title;
   }
 
   // -------------------- Data haku --------------------
@@ -406,6 +418,30 @@
 
   // -------------------- Päällekkäisyyksien asettelu --------------------
 
+  // Erottaa "jaettu jää" -tapaukset (kaksi+ tapahtumaa TÄSMÄLLEEN samalla
+  // alku- ja loppuajalla, esim. "Hokkarit-U9 1/2" + "Hokkarit-U8 1/2"
+  // klo 16:45–17:45) muista tapahtumista. Nämä eivät ole vain ajallisesti
+  // päällekkäisiä vaan saman jääosuuden virallinen jako — ne piirretään
+  // renderSharedEvent():lla yhtenä leveänä laatikkona (ks. alempana), ei
+  // kahtena kapeana vierekkäisenä laatikkona (ks. aiempi, ahdas ulkoasu).
+  // Muut (aidosti vain osittain päällekkäiset, esim. peräkkäiset varaukset
+  // joiden ajat menevät hieman limittäin) menevät edelleen layoutColumns():iin.
+  function groupSharedEvents(events) {
+    const byTime = new Map();
+    events.forEach((ev) => {
+      const key = `${ev.startDt.getTime()}_${ev.endDt.getTime()}`;
+      if (!byTime.has(key)) byTime.set(key, []);
+      byTime.get(key).push(ev);
+    });
+    const shared = [];
+    const solo = [];
+    byTime.forEach((group) => {
+      if (group.length > 1) shared.push(group);
+      else solo.push(group[0]);
+    });
+    return { shared, solo };
+  }
+
   // Ryhmittää samassa palstassa ajallisesti päällekkäiset tapahtumat
   // ja jakaa niille oman leveysosuuden vierekkäin.
   function layoutColumns(events) {
@@ -537,9 +573,15 @@
         empty.textContent = "Ei vuoroja tänään";
         body.appendChild(empty);
       } else {
-        const laidOut = layoutColumns(events);
+        const { shared, solo } = groupSharedEvents(events);
+
+        const laidOut = layoutColumns(solo);
         laidOut.forEach(({ ev, col: c, cols }) => {
           body.appendChild(renderEvent(ev, c, cols, rangeStart, rangeEnd, containerHeightPx));
+        });
+
+        shared.forEach((group) => {
+          body.appendChild(renderSharedEvent(group, rangeStart, rangeEnd, containerHeightPx));
         });
       }
 
@@ -601,6 +643,60 @@
     timeEl.innerHTML = CLOCK_ICON_SVG; // vakio, ei koskaan käyttäjädataa
     const timeText = document.createElement("span");
     timeText.textContent = `${fmtHM(ev.startDt)}–${fmtHM(ev.endDt)}`;
+    timeEl.appendChild(timeText);
+    block.appendChild(timeEl);
+
+    return block;
+  }
+
+  // Piirtää "jaettu jää" -tapauksen (ks. groupSharedEvents) YHTENÄ koko
+  // palstan levyisenä laatikkona, sisällä joukkueet vierekkäin ohuella
+  // erottimella jaettuna — ei kahtena erillisenä, puolet kapeampana
+  // laatikkona joissa kummassakin toistuisi sama kellonaika. Kaikilla
+  // ryhmän tapahtumilla on TÄSMÄLLEEN sama alku-/loppuaika (groupSharedEvents
+  // takaa tämän), joten aika riittää näyttää kerran koko laatikolle.
+  function renderSharedEvent(group, rangeStart, rangeEnd, containerHeightPx) {
+    const first = group[0];
+    const top = pctOf(first.startDt, rangeStart, rangeEnd);
+    const bottom = pctOf(first.endDt, rangeStart, rangeEnd);
+    const heightPct = Math.max(0.5, bottom - top);
+    const heightPx = (heightPct / 100) * containerHeightPx;
+
+    const block = document.createElement("div");
+    block.className = "event-block shared-event";
+    if (heightPx < COMPACT_BELOW_PX) block.classList.add("compact");
+    if (heightPx < TINY_BELOW_PX) block.classList.add("tiny");
+    block.style.top = `${top}%`;
+    block.style.minHeight = `${heightPx}px`;
+    block.style.left = "calc(0% + 16px)";
+    block.style.width = "calc(100% - 32px)";
+
+    const label = document.createElement("div");
+    label.className = "shared-label";
+    label.textContent = "Jaettu jää";
+    block.appendChild(label);
+
+    const teamsEl = document.createElement("div");
+    teamsEl.className = "shared-teams";
+    group.forEach((ev, i) => {
+      if (i > 0) {
+        const divider = document.createElement("div");
+        divider.className = "shared-divider";
+        teamsEl.appendChild(divider);
+      }
+      const { title } = splitTitle(decodeEntities(ev.title));
+      const teamEl = document.createElement("div");
+      teamEl.className = "shared-team";
+      teamEl.textContent = title;
+      teamsEl.appendChild(teamEl);
+    });
+    block.appendChild(teamsEl);
+
+    const timeEl = document.createElement("div");
+    timeEl.className = "ev-time";
+    timeEl.innerHTML = CLOCK_ICON_SVG; // vakio, ei koskaan käyttäjädataa
+    const timeText = document.createElement("span");
+    timeText.textContent = `${fmtHM(first.startDt)}–${fmtHM(first.endDt)}`;
     timeEl.appendChild(timeText);
     block.appendChild(timeEl);
 
