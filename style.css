@@ -234,90 +234,11 @@ body {
   flex: none;
 }
 
-/* ---------------- Jaettu jää (ks. app.js groupSharedEvents/renderSharedEvent) ----------------
-   Kaksi (tai useampi) joukkuetta samalla jääosuudella TÄSMÄLLEEN samaan
-   aikaan piirretään yhtenä koko palstan levyisenä laatikkona, jossa
-   joukkueet erottaa ohut pystyviiva — ei kahtena erillisenä puolikkaan
-   levyisenä laatikkona (aiempi ulkoasu näytti ahtaalta ja aika toistui
-   kahteen kertaan). */
-.event-block.shared-event {
-  flex-direction: column;
-}
-
-.shared-label {
-  font-size: clamp(9px, 1vh, 11px);
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-dim);
-  margin-bottom: 2px;
-}
-
-.shared-teams {
-  display: flex;
-  align-items: stretch;
-  flex: 1 1 auto;
-}
-
-.shared-team {
-  flex: 1 1 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 4px;
-  text-align: center;
-  font-size: clamp(15px, 1.8vh, 22px);
-  font-weight: 700;
-  line-height: 1.2;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.shared-divider {
-  width: 1px;
-  align-self: stretch;
-  margin: 0 4px;
-  background: var(--grid-line);
-}
-
-.event-block.shared-event .ev-time {
-  justify-content: center;
-  margin-top: 2px;
-}
-
-/* Ahtaassa (compact) jaetussa laatikossa ei ole tilaa omalle "Jaettu jää"
-   -otsikkoriville — joukkueet ja kellonaika samalle riville, kuten
-   tavallisessakin .compact-asettelussa (ks. yllä). */
-.event-block.shared-event.compact {
-  flex-direction: row;
-  flex-wrap: wrap;
-  align-items: baseline;
-  column-gap: 0.5em;
-  row-gap: 0;
-}
-
-.event-block.shared-event.compact .shared-label {
-  display: none;
-}
-
-.event-block.shared-event.compact .shared-teams {
-  flex: 1 1 auto;
-  min-width: 4em;
-}
-
-.event-block.shared-event.compact .shared-team {
-  font-size: clamp(13px, 1.5vh, 18px);
-}
-
-.event-block.shared-event.compact .ev-time {
-  flex: 0 0 auto;
-  margin-top: 0;
-}
-
-.event-block.shared-event.tiny .shared-team {
-  font-size: clamp(10px, 1.1vh, 13px);
-}
+/* "Jaettu jää" -tapaukset (kaksi+ joukkuetta samalla jääosuudella TÄSMÄLLEEN
+   samaan aikaan) piirretään ihan tavallisena event-block-laatikkona, jonka
+   otsikossa osapuolten nimet on vain yhdistetty (esim. "U9 / U8") — ks.
+   app.js groupSharedEvents/renderColumns. Ei siis omaa, muista poikkeavaa
+   ulkoasua tässä tiedostossa. */
 
 /* Ahtaassa (compact) laatikossa pystytilaa ei riitä otsikolle JA
    kellonajalle omilla riveillään ilman että laatikko venyy tarpeettoman
