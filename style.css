@@ -233,8 +233,38 @@ body {
 /* "Jaettu N/M" -badge poistettu kokonaan tilan säästämiseksi — jaettu jää
    näkyy jo siitä että laatikoita on vierekkäin (ks. app.js splitTitle). */
 
+/* Ahtaassa (compact) laatikossa pystytilaa ei riitä otsikolle JA
+   kellonajalle omilla riveillään ilman että laatikko venyy tarpeettoman
+   korkeaksi todelliseen kestoonsa nähden (ks. app.js — ei enää kiinteää
+   vähimmäiskorkeutta). Siirretään siis kellonaika otsikon VIEREEN samalle
+   riville tilan säästämiseksi — flex-wrap hoitaa automaattisesti sen, että
+   kellonaika tippuu omalle rivilleen jos otsikko on liian pitkä mahtuakseen
+   samalle riville (esim. hyvin kapea jaetun jään laatikko). */
+.event-block.compact {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 0.5em;
+  row-gap: 0;
+}
+
 .event-block.compact .ev-title {
   font-size: clamp(15px, 1.5vh, 18px);
+  flex: 1 1 auto;
+  min-width: 4em;
+  /* Yksi rivi + "..." kahden rivin sijaan, koska kellonaika vie nyt tilaa
+     samalta riviltä eikä otsikolle enää kannata varata kahta riviä. */
+  display: block;
+  -webkit-line-clamp: unset;
+  line-clamp: unset;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.event-block.compact .ev-time {
+  flex: 0 0 auto;
+  margin-top: 0;
 }
 
 /* Kaikki tapahtumat samalla värillä riippumatta tilasta (lp-reserved/

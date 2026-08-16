@@ -531,22 +531,21 @@
     });
   }
 
-  // Pikselirajat, joilla varmistetaan tekstin luettavuus laitteesta riippumatta.
-  // Otsikko (kuka pelaa) on tärkein tieto laatikossa eikä sitä saa koskaan
-  // leikata kesken — MIN_BLOCK_PX on siis mitoitettu niin että kahdelle
-  // riville rivittynyt otsikko (ks. .ev-title CSS:ssä) mahtuu aina, vaikka
-  // tapahtuma olisi kuinka lyhyt tahansa. Tämä voi joskus aiheuttaa hyvin
-  // lähekkäisten lyhyiden tapahtumien laatikoiden mennä hieman päällekkäin,
-  // mikä on tarkoituksellinen kompromissi luettavuuden hyväksi.
-  const MIN_BLOCK_PX = 44;
-  const COMPACT_BELOW_PX = 46; // tämän alle kellonaika/merkki piilotetaan, näytetään vain nimi
+  // Ei enää keinotekoista vähimmäiskorkeutta (aiempi MIN_BLOCK_PX): laatikon
+  // korkeus seuraa aina suoraan tapahtuman todellista kestoa, jotta laatikon
+  // alareuna vastaa aina oikeaa päättymisaikaa aikajanalla eikä näytä
+  // tapahtuman jatkuvan pidempään kuin se oikeasti kestää. Lyhyillä
+  // tapahtumilla (esim. alkulämpö) laatikko voi silti kasvaa hieman tätä
+  // korkeammaksi jos otsikko/kellonaika ei muuten mahtuisi (ks. min-height
+  // alempana ja .compact-asettelu CSS:ssä) — se on kuitenkin vain sen
+  // verran kuin teksti oikeasti vaatii, ei kiinteä lisäpakko.
+  const COMPACT_BELOW_PX = 46; // tämän alle kellonaika siirtyy otsikon viereen (ks. .compact CSS:ssä)
 
   function renderEvent(ev, colIndex, colCount, rangeStart, rangeEnd, containerHeightPx) {
     const top = pctOf(ev.startDt, rangeStart, rangeEnd);
     const bottom = pctOf(ev.endDt, rangeStart, rangeEnd);
     const heightPct = Math.max(0.5, bottom - top);
-    const naturalHeightPx = (heightPct / 100) * containerHeightPx;
-    const heightPx = Math.max(MIN_BLOCK_PX, naturalHeightPx);
+    const heightPx = (heightPct / 100) * containerHeightPx;
 
     const widthPct = 100 / colCount;
     const leftPct = widthPct * colIndex;
