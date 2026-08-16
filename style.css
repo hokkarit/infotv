@@ -114,7 +114,11 @@ body {
   color: var(--text-dim);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
-  transform: translateY(-1px);
+  /* EI transform:ia: .hour-grid-line (sama tuntikohta palstojen puolella,
+     ks. app.js renderColumns) ei siirrä itseään pystysuunnassa, joten tämän
+     täytyy pysyä samassa top-kohdassa piirtyäkseen samalle riville sen
+     kanssa — aiempi translateY(-1px) veti tämän reunaviivan 1px ylemmäs
+     kuin vastaava viiva palstoissa. */
 }
 
 #columns {
@@ -265,6 +269,27 @@ body {
 .event-block.compact .ev-time {
   flex: 0 0 auto;
   margin-top: 0;
+}
+
+/* Hyvin lyhyet tapahtumat (esim. 15 min alkulämpö, ks. app.js TINY_BELOW_PX):
+   .compact ei enää riitä — pienennetään fontti entisestään ja piilotetaan
+   kellonajan ikoni (turha koriste, vie tilaa), jotta laatikon vaatima
+   vähimmäiskorkeus lähenee sen todellista (lyhyttä) kestoa eikä laatikko
+   tulvi yhtä paljon seuraavan tunnin puolelle. */
+.event-block.tiny {
+  padding: 1px 6px;
+}
+
+.event-block.tiny .ev-title {
+  font-size: clamp(10px, 1.1vh, 13px);
+}
+
+.event-block.tiny .ev-time {
+  font-size: clamp(9px, 1vh, 11px);
+}
+
+.event-block.tiny .ev-time-icon {
+  display: none;
 }
 
 /* Kaikki tapahtumat samalla värillä riippumatta tilasta (lp-reserved/

@@ -59,9 +59,12 @@
 
     // Aikajanan näkyvä alkuaika. Jos päivän tapahtumat alkavat tätä
     // aiemmin, alkua aikaistetaan automaattisesti (30 min marginaalilla).
-    // Loppuaika on aina kuluvan päivän loppu (23:59:59, ks. computeRange)
-    // eikä ole enää erikseen asetettavissa.
     dayStartHour: 7,
+
+    // Aikajanan näkyvä loppuaika — kiinteä, ei venytetä vaikka joku vuoro
+    // päättyisi tätä myöhemmin (ks. computeRange). Tuon ajan jälkeiset
+    // vuorot/osuudet leikkautuvat pois näkyvistä (pctOf rajaa 100 %:iin).
+    dayEndHour: 22,
 
     // Yläpuolella oleva koppijakotaulu (kopit.js) lataa oman datansa
     // itsenäisesti ja muuttaa kokoaan kun "Haetaan dataa…" -teksti korvautuu
@@ -368,14 +371,11 @@
     startHour = Math.max(0, startHour);
 
     const rangeStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), startHour, 0);
-    // Aikajana piirretään AINA kuluvan päivän loppuun (23:59:59) asti —
-    // ei enää venytetä pidemmälle vaikka joku vuoro päättyisi myöhään, ja
-    // "nyt"-viiva (ks. positionNowLine) näkyy koko sen ajan, ei erikseen
-    // rajattuna. Käytetään seuraavan päivän 00:00:aa loppurajana, joka
-    // VASTAA tarkalleen kuluvan päivän 23:59:59:ää — new Date(y,m,d+1,0,0)
-    // hoitaa kuukauden/
-    // vuoden vaihtumisen automaattisesti oikein (esim. 31.1. -> 1.2.).
-    const rangeEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0);
+    // Aikajana piirretään AINA CONFIG.dayEndHour:iin asti — ei venytetä
+    // pidemmälle vaikka joku vuoro päättyisi myöhään (se leikkautuu pois,
+    // ks. pctOf), ja "nyt"-viiva (ks. positionNowLine) katoaa tuon ajan
+    // jälkeen samoin kuin ennen dayStartHour:ia aamulla.
+    const rangeEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), CONFIG.dayEndHour, 0);
     return { rangeStart, rangeEnd };
   }
 
@@ -482,7 +482,23 @@
     // jotta lyhyille (esim. 15 min) tapahtumille voidaan taata edes
     // luettava vähimmäiskorkeus — pelkkä prosenttikorkeus menee olemattomiin
     // pienillä (mobiili-) näytöillä, joilla koko aikajana on muutenkin matalampi.
-    const containerHeightPx = el.columns.getBoundingClientRect().height || window.innerHeight * 0.7;
+    //
+    // HUOM: el.columns:in korkeus sisältää myös palstojen otsikkorivin
+    // (.resource-col-header, ks. --col-header-h), mutta tapahtumien top:%
+    // lasketaan .resource-col-body:n (otsikon ALAPUOLISEN, pienemmän) alueen
+    // suhteen — jos containerHeightPx otettaisiin el.columns:ista, kaikki
+    // pikseleinä asetetut min-height-arvot olisivat systemaattisesti hieman
+    // liian suuria suhteessa prosenttikorkeuteen, ja jokainen laatikko
+    // venyisi todellista kestoaan pidemmäksi (esim. muutama pikseli yli
+    // tasatunnin, vaikka kesto päättyisi tasan siihen). Mitataan siis
+    // #hourRail:n sisältöalue (.hour-rail-body), joka on täsmälleen saman
+    // korkuinen kuin .resource-col-body — sama alue jota positionNowLine()
+    // jo käyttää "nyt"-viivan sijoitukseen.
+    const hourRailBodyEl = el.hourRail.querySelector(".hour-rail-body");
+    const containerHeightPx =
+      (hourRailBodyEl && hourRailBodyEl.getBoundingClientRect().height) ||
+      el.columns.getBoundingClientRect().height ||
+      window.innerHeight * 0.7;
 
     if (resources.length === 0) {
       const div = document.createElement("div");
@@ -540,6 +556,12 @@
   // alempana ja .compact-asettelu CSS:ssä) — se on kuitenkin vain sen
   // verran kuin teksti oikeasti vaatii, ei kiinteä lisäpakko.
   const COMPACT_BELOW_PX = 46; // tämän alle kellonaika siirtyy otsikon viereen (ks. .compact CSS:ssä)
+  // Hyvin lyhyet (esim. 15 min alkulämpö) tapahtumat eivät mahdu edes
+  // .compact-asettelun tekstikokoon ilman että laatikko venyy selvästi
+  // todellista kestoaan pidemmäksi ja tulvii seuraavan tunnin puolelle —
+  // pienennetään fontti ja piilotetaan kellonaikaikoni entisestään, jotta
+  // vaadittu vähimmäiskorkeus lähenee todellista kestoa (ks. .tiny CSS:ssä).
+  const TINY_BELOW_PX = 26;
 
   function renderEvent(ev, colIndex, colCount, rangeStart, rangeEnd, containerHeightPx) {
     const top = pctOf(ev.startDt, rangeStart, rangeEnd);
@@ -560,6 +582,7 @@
     const block = document.createElement("div");
     block.className = `event-block ${statusClass(ev.className)}`;
     if (heightPx < COMPACT_BELOW_PX) block.classList.add("compact");
+    if (heightPx < TINY_BELOW_PX) block.classList.add("tiny");
     block.style.top = `${top}%`;
     // min-height (ei height): jos otsikko tarvitsee enemmän tilaa kuin ajan
     // suhteesta laskettu korkeus antaisi, laatikko saa kasvaa sen verran —
@@ -597,10 +620,10 @@
       return;
     }
 
-    // Aikajana piirretään aina kuluvan päivän loppuun (23:59:59) asti
-    // (ks. computeRange), joten "nyt"-viiva näkyy koko sen näkyvän
-    // aikavälin ajan — piilotetaan vain jos ollaan aidosti sen ulkopuolella
-    // (esim. ennen dayStartHour:ia aamulla, tai jo seuraavassa päivässä).
+    // Aikajana piirretään aina CONFIG.dayEndHour:iin asti (ks. computeRange),
+    // joten "nyt"-viiva näkyy koko sen näkyvän aikavälin ajan — piilotetaan
+    // vain jos ollaan aidosti sen ulkopuolella (esim. ennen dayStartHour:ia
+    // aamulla, tai dayEndHour:in jälkeen illalla).
     if (now < rangeStart || now > rangeEnd) {
       el.nowLine.style.display = "none";
       return;
@@ -615,10 +638,17 @@
     // ylös (osittain otsikon päälle). Lasketaan siis pikselikohtainen
     // sijainti niin että 0 % osuu otsikkorivin alareunaan, ei #board:n
     // yläreunaan.
+    //
+    // HUOM: #nowLine:n "top" on suhteessa #board:n SISÄLTÖalueen (padding
+    // edge) yläreunaan, eli reunaviivan (border-top) SISÄPUOLELLE — mutta
+    // getBoundingClientRect() palauttaa reunaboksin (border box) ulkoreunan.
+    // Jos board.clientTop (= border-top-width, tässä 1px) jätetään
+    // vähentämättä, viiva piirtyy juuri sen verran liian alas jokaisessa
+    // kohdassa (esim. tasatunneilla pari pikseliä "tuntimerkin" ohi).
     const boardRect = el.board.getBoundingClientRect();
     const bodyEl = el.hourRail.querySelector(".hour-rail-body");
     const bodyRect = (bodyEl || el.board).getBoundingClientRect();
-    const topPx = (bodyRect.top - boardRect.top) + (pct / 100) * bodyRect.height;
+    const topPx = (bodyRect.top - boardRect.top - el.board.clientTop) + (pct / 100) * bodyRect.height;
     el.nowLine.style.top = `${topPx}px`;
     el.nowLineLabel.textContent = fmtHM(now);
   }

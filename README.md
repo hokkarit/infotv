@@ -130,7 +130,8 @@ Parametrit voi yhdistää, esim. `index.html?display=main&date=2026-08-20`.
 |---|---|
 | `resourceOrder` | Mitkä liikuntapaikat näytetään ja missä järjestyksessä (nimen perusteella). Tyhjä lista `[]` = näytä kaikki aktiiviset. |
 | `refreshIntervalMs` | Kuinka usein data haetaan uudelleen. |
-| `dayStartHour` / `dayEndHour` | Aikajanan oletusnäkyvyysväli — laajenee automaattisesti jos tapahtumia on tämän ulkopuolella. |
+| `dayStartHour` | Aikajanan alkuaika — aikaistuu automaattisesti jos tapahtumia alkaa tätä ennen. |
+| `dayEndHour` | Aikajanan loppuaika — kiinteä, ei venytetä vaikka joku vuoro päättyisi myöhemmin (se leikkautuu pois näkyvistä). |
 | `dailyReloadHour` | Klo, jolloin sivu lataa itsensä kokonaan uudelleen. `null` = ei koskaan. |
 
 ## Paikallinen testaus
