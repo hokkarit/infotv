@@ -670,22 +670,26 @@
     }, 150);
   }
 
-  // Laskee "nyt"-viivan uudelleen tämänhetkisen ajan/koon mukaan — käytetään
-  // sekä alla olevasta ResizeObserverista että koppijaon valmistumisesta.
-  function refreshNowLine() {
+  // Piirtää koko laudan (tuntipalkki, tapahtumapalstat, "nyt"-viiva)
+  // uudelleen tämänhetkisen ajan/koon mukaan — käytetään sekä alla olevasta
+  // ResizeObserverista että koppijaon valmistumisesta. HUOM: pelkkä
+  // "nyt"-viivan uudelleensijoitus ei riitä, koska tapahtumalaatikoiden
+  // korkeudet (ks. renderEvent) lasketaan pikseleinä #board:n SEN HETKISEN
+  // korkeuden mukaan — jos vain viiva päivitettäisiin, laatikot jäisivät
+  // vanhaan pikselikorkeuteen ja näyttäisivät kestävän väärän ajan.
+  function refreshLayout() {
     if (!STATE.activeResources) return;
-    const now = getEffectiveNow();
-    const { rangeStart, rangeEnd } = computeRange(now);
-    positionNowLine(now, rangeStart, rangeEnd);
+    renderBoard();
   }
 
   // #board:n korkeus ei ole kiinteä: se saa flex-tilaa sen mukaan paljonko
   // yläpuolella oleva koppijakotaulu (kopit.js, oma erillinen datahaku) vie.
-  // "Nyt"-viivan pikselikohta lasketaan #board:n SEN HETKISEN korkeuden
-  // mukaan (ks. positionNowLine) — jos koppitaulu latautuu myöhemmin ja
-  // muuttaa kokoaan (esim. "Haetaan dataa…" -> N riviä), #board kutistuu/
-  // kasvaa ilman että kumpikaan skripti tietää toisesta. koppijakoSettled-
-  // odotus (ks. waitForKoppijako alla) hoitaa ENSIMMÄISEN näyttökerran; tämä
+  // Sekä "nyt"-viivan pikselikohta että tapahtumalaatikoiden pikselikorkeus
+  // lasketaan #board:n SEN HETKISEN korkeuden mukaan (ks. positionNowLine,
+  // renderEvent) — jos koppitaulu latautuu myöhemmin ja muuttaa kokoaan
+  // (esim. "Haetaan dataa…" -> N riviä), #board kutistuu/kasvaa ilman että
+  // kumpikaan skripti tietää toisesta. koppijakoSettled-odotus (ks.
+  // waitForKoppijako alla) hoitaa ENSIMMÄISEN näyttökerran; tämä
   // ResizeObserver on varmuuden vuoksi sen jälkeenkin, jos #board:n koko
   // muuttuu jostain muusta syystä (esim. koppijaon rivimäärä vaihtuu
   // myöhemmällä päivityksellä).
@@ -693,7 +697,7 @@
     let boardResizeDebounce = null;
     new ResizeObserver(() => {
       clearTimeout(boardResizeDebounce);
-      boardResizeDebounce = setTimeout(refreshNowLine, 30);
+      boardResizeDebounce = setTimeout(refreshLayout, 30);
     }).observe(el.board);
   }
 
@@ -711,7 +715,7 @@
       if (settled) return;
       settled = true;
       koppijakoSettled = true;
-      refreshNowLine();
+      refreshLayout();
     };
     window.addEventListener("koppijako:initial-load", settle, { once: true });
     setTimeout(settle, CONFIG.koppijakoWaitTimeoutMs);
