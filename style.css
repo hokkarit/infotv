@@ -188,10 +188,15 @@ body {
   /* Kiinteä pikselipadding, ei vh/vw-suhteellinen — muuten padding syö
      verrannollisesti liikaa tilaa matalilla (esim. mobiili-) näytöillä. */
   padding: 2px 6px;
-  /* EI overflow:hidden — korkeus on min-height (ks. app.js), joten laatikko
-     kasvaa tarvittaessa täyteen otsikon vaatimaan korkeuteen sen sijaan että
-     ylimenevä osa leikkautuisi kesken. Otsikolla on omat 2-rivin rajansa
-     (ks. .ev-title), joten teksti ei silti kasva rajattomasti. */
+  /* EI kiinteää overflow:hidden-sääntöä tässä — korkeus on min-height
+     (ks. app.js), joten laatikko kasvaa tarvittaessa täyteen otsikon
+     vaatimaan korkeuteen sen sijaan että ylimenevä osa leikkautuisi kesken.
+     Otsikolla on omat 2-rivin rajansa (ks. .ev-title), joten teksti ei
+     silti kasva rajattomasti. POIKKEUS: jos seuraava tapahtuma samalla
+     palstalla alkaa lähellä (esim. kaksi peräkkäistä lyhyttä vuoroa ilman
+     väliä), app.js asettaa myös max-height + overflow:hidden inline-tyylinä
+     (ks. computeMaxHeightPx) ettei laatikko kasva seuraavan tapahtuman
+     päälle — silloinkin vain viimeisenä keinona, ei oletuksena. */
   border-left: 4px solid transparent;
   box-shadow: 0 2px 4px rgba(0,0,0,0.35);
   display: flex;

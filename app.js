@@ -576,9 +576,16 @@
       } else {
         const { shared, solo } = groupSharedEvents(events);
 
+        // Kuinka paljon TÄMÄ tapahtuma saa korkeintaan kasvaa alle
+        // vähimmäiskorkeuden (ks. renderEvent) törmäämättä SEURAAVAAN
+        // samalla palstalla alkavaan tapahtumaan — ks. computeMaxHeightPx.
+        const maxHeightFor = (startDt, endDt) =>
+          computeMaxHeightPx(startDt, endDt, events, rangeStart, rangeEnd, containerHeightPx);
+
         const laidOut = layoutColumns(solo);
         laidOut.forEach(({ ev, col: c, cols }) => {
-          body.appendChild(renderEvent(ev, c, cols, rangeStart, rangeEnd, containerHeightPx));
+          const maxHeightPx = maxHeightFor(ev.startDt, ev.endDt);
+          body.appendChild(renderEvent(ev, c, cols, rangeStart, rangeEnd, containerHeightPx, maxHeightPx));
         });
 
         // Jaettu jää piirretään ihan samalla renderEvent()-laatikolla kuin
@@ -592,7 +599,8 @@
             .map((ev) => splitTitle(decodeEntities(ev.title)).title)
             .join(" / ");
           const merged = { ...group[0], title: combinedTitle };
-          body.appendChild(renderEvent(merged, 0, 1, rangeStart, rangeEnd, containerHeightPx));
+          const maxHeightPx = maxHeightFor(merged.startDt, merged.endDt);
+          body.appendChild(renderEvent(merged, 0, 1, rangeStart, rangeEnd, containerHeightPx, maxHeightPx));
         });
       }
 
@@ -607,7 +615,9 @@
   // tapahtumilla (esim. alkulämpö) laatikko voi silti kasvaa hieman tätä
   // korkeammaksi jos otsikko/kellonaika ei muuten mahtuisi (ks. min-height
   // alempana ja .compact-asettelu CSS:ssä) — se on kuitenkin vain sen
-  // verran kuin teksti oikeasti vaatii, ei kiinteä lisäpakko.
+  // verran kuin teksti oikeasti vaatii, ei kiinteä lisäpakko. Kasvu on
+  // kuitenkin rajattu jos seuraava tapahtuma alkaa lähellä (ks.
+  // computeMaxHeightPx), ettei laatikko valu sen päälle.
   const COMPACT_BELOW_PX = 46; // tämän alle kellonaika siirtyy otsikon viereen (ks. .compact CSS:ssä)
   // Hyvin lyhyet (esim. 15 min alkulämpö) tapahtumat eivät mahdu edes
   // .compact-asettelun tekstikokoon ilman että laatikko venyy selvästi
@@ -616,7 +626,33 @@
   // vaadittu vähimmäiskorkeus lähenee todellista kestoa (ks. .tiny CSS:ssä).
   const TINY_BELOW_PX = 26;
 
-  function renderEvent(ev, colIndex, colCount, rangeStart, rangeEnd, containerHeightPx) {
+  // Kuinka korkeaksi laatikko saa KORKEINTAAN kasvaa alle oman todellisen
+  // kestonsa (ks. min-height yllä) törmäämättä SEURAAVAAN samalla palstalla
+  // alkavaan tapahtumaan. Ongelma konkretisoituu esim. kahdella peräkkäisellä,
+  // ilman väliä olevalla lyhyellä vuorolla (esim. "MESTIS alkulämpö
+  // tuomarit" klo 17:40–17:50, heti perässä "...pelaajat" klo 17:50–18:10):
+  // 10 minuutin osuus on pikseleinä niin kapea ettei edes .tiny-fontti
+  // (ks. TINY_BELOW_PX) mahdu siihen ilman kasvua, jolloin laatikko muuten
+  // venyisi seuraavan tapahtuman PÄÄLLE. Etsitään siis lähin seuraava
+  // tapahtuma joka alkaa VASTA tämän päätyttyä (ei siis ajallisesti
+  // päällekkäinen — ne on jo eroteltu omiin sarakkeisiinsa, ks.
+  // layoutColumns, eikä niitä pidä rajoittaa tällä), ja käytetään sen
+  // alkukohtaa kattona. Palauttaa null jos ei rajoitusta (esim. päivän
+  // viimeinen tapahtuma palstalla).
+  function computeMaxHeightPx(startDt, endDt, allEvents, rangeStart, rangeEnd, containerHeightPx) {
+    let boundaryDt = null;
+    for (const other of allEvents) {
+      if (other.startDt < endDt) continue; // ajallisesti päällekkäinen -> oma sarake, ei rajoita
+      if (other.startDt <= startDt) continue; // ei "seuraava"
+      if (boundaryDt === null || other.startDt < boundaryDt) boundaryDt = other.startDt;
+    }
+    if (boundaryDt === null) return null;
+    const top = pctOf(startDt, rangeStart, rangeEnd);
+    const boundaryPct = pctOf(boundaryDt, rangeStart, rangeEnd);
+    return Math.max(0, ((boundaryPct - top) / 100) * containerHeightPx);
+  }
+
+  function renderEvent(ev, colIndex, colCount, rangeStart, rangeEnd, containerHeightPx, maxHeightPx) {
     const top = pctOf(ev.startDt, rangeStart, rangeEnd);
     const bottom = pctOf(ev.endDt, rangeStart, rangeEnd);
     const heightPct = Math.max(0.5, bottom - top);
@@ -641,6 +677,14 @@
     // suhteesta laskettu korkeus antaisi, laatikko saa kasvaa sen verran —
     // muuten kiinteä korkeus + overflow:hidden leikkaisi otsikon kesken.
     block.style.minHeight = `${heightPx}px`;
+    // Katto vain jos seuraava tapahtuma on lähellä (ks. computeMaxHeightPx) —
+    // muuten laatikko saisi kasvaa rajattomasti kuten ennenkin. Kun katto on
+    // asetettu, overflow:hidden estää sisällön (harvinaisessa ääritapauksessa,
+    // esim. hyvin lyhyt + pitkä otsikko) valumasta seuraavan laatikon päälle.
+    if (maxHeightPx !== null && maxHeightPx !== undefined) {
+      block.style.maxHeight = `${maxHeightPx}px`;
+      block.style.overflow = "hidden";
+    }
     block.style.left = `calc(${leftPct}% + 16px)`;
     block.style.width = `calc(${widthPct}% - 32px)`;
 
