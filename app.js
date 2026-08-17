@@ -464,6 +464,85 @@
     return withCols;
   }
 
+  // Alle tämän (pikseleinä, laskettuna suoraan tapahtuman todellisesta
+  // kestosta) jäävä YKSITTÄINEN tapahtuma ei enää mahdu luettavasti edes
+  // .tiny-asetteluun (ks. TINY_BELOW_PX alempana) JOS sen vieressä on
+  // TÄSMÄLLEEN ilman väliä alkava seuraava tapahtuma — silloin
+  // computeMaxHeightPx pakottaa laatikon tarkalleen tuon lyhyen keston
+  // korkuiseksi eikä mihinkään jää venymisvaraa (esim. MESTIS-ottelun
+  // "alkulämpö tuomarit" 17:40–17:50 heti perässä "alkulämpö pelaajat"
+  // 17:50–18:10 — ks. buildRenderUnits). Hieman TINY_BELOW_PX:ää
+  // suurempi, jotta ketjuun otetaan mukaan myös raja-tapaukset joissa
+  // .tiny periaatteessa mahtuisi mutta ei enää mukavasti.
+  const CHAIN_MERGE_BELOW_PX = 34;
+
+  // Yhdistää PERÄKKÄISET, TOISIAAN KOSKETTAVAT (ei väliä) ja liian lyhyet
+  // tapahtumat "ketjuiksi" jotka piirretään (ks. renderChainGroup) YHTENÄ
+  // laatikkona, jossa jokainen osa näkyy omalla rivillään OMALLA
+  // kellonajallaan — ei siis vain yhtä yhdistettyä kokonaisaikaa, koska
+  // esim. tuomareiden ja pelaajien alkulämmöt ovat eri pituisia ja osapuolten
+  // pitää nähdä juuri OMA aikansa (ks. käyttäjän toive: "osa-ajat näkyviin").
+  // Laatikon kokonaiskorkeus vastaa silti ketjun TODELLISTA yhteiskestoa
+  // (ensimmäisen alusta viimeisen loppuun) — ei siis mitään keinotekoista
+  // venytystä, sama periaate kuin "jaettu jää":ssäkin (ks. groupSharedEvents).
+  //
+  // Ketju jatkuu eteenpäin niin kauan kuin VIIMEISIN mukaan otettu osa
+  // itsessään olisi liian lyhyt seisomaan yksin JA koskettaa suoraan
+  // seuraavaa — jos välissä on tauko tai edellinen osa on jo riittävän
+  // korkea yksinään, ketju katkeaa (ei siis niellä esim. tavallista
+  // tunnin harjoitusta mukaan vain koska sitä edeltää lyhyt alkulämpö).
+  function buildRenderUnits(soloEvents, rangeStart, rangeEnd, containerHeightPx) {
+    const sorted = [...soloEvents].sort((a, b) => a.startDt - b.startDt);
+    const units = [];
+    let i = 0;
+    while (i < sorted.length) {
+      const chain = [sorted[i]];
+      while (i + chain.length < sorted.length) {
+        const last = chain[chain.length - 1];
+        const next = sorted[i + chain.length];
+        if (last.endDt.getTime() !== next.startDt.getTime()) break; // väli -> ei jatketa
+        const lastNaturalPx =
+          ((pctOf(last.endDt, rangeStart, rangeEnd) - pctOf(last.startDt, rangeStart, rangeEnd)) / 100) *
+          containerHeightPx;
+        if (lastNaturalPx >= CHAIN_MERGE_BELOW_PX) break; // edellinen mahtuu jo yksinään
+        chain.push(next);
+      }
+      i += chain.length;
+      units.push(
+        chain.length > 1
+          ? { startDt: chain[0].startDt, endDt: chain[chain.length - 1].endDt, chain }
+          : chain[0]
+      );
+    }
+    return units;
+  }
+
+  // Erottaa ketjun otsikoista sanatasolla yhteisen etuliitteen, esim.
+  // ["MESTIS alkulämpö tuomarit", "MESTIS alkulämpö pelaajat"] ->
+  // { common: "MESTIS alkulämpö", rests: ["tuomarit", "pelaajat"] }.
+  // Jos yhteistä ei löydy (tai se söisi jonkun otsikon KOKONAAN, jolloin
+  // erottavaa jäisi näkyviin nolla merkkiä), common on null ja rests ovat
+  // täydet (siistityt) otsikot sellaisenaan.
+  function splitCommonPrefix(titles) {
+    const wordLists = titles.map((t) => t.split(/\s+/));
+    let commonLen = 0;
+    outer: for (let w = 0; w < wordLists[0].length; w++) {
+      const word = wordLists[0][w];
+      for (const list of wordLists) {
+        if (list[w] !== word) break outer;
+      }
+      commonLen++;
+    }
+    const shortest = Math.min(...wordLists.map((w) => w.length));
+    if (commonLen === 0 || commonLen >= shortest) {
+      return { common: null, rests: titles };
+    }
+    return {
+      common: wordLists[0].slice(0, commonLen).join(" "),
+      rests: wordLists.map((w) => w.slice(commonLen).join(" ")),
+    };
+  }
+
   // -------------------- Renderöinti --------------------
 
   // Palauttaa rajapinnan liikuntapaikan nimelle näytettävän tekstin —
@@ -582,10 +661,20 @@
         const maxHeightFor = (startDt, endDt) =>
           computeMaxHeightPx(startDt, endDt, events, rangeStart, rangeEnd, containerHeightPx);
 
-        const laidOut = layoutColumns(solo);
-        laidOut.forEach(({ ev, col: c, cols }) => {
-          const maxHeightPx = maxHeightFor(ev.startDt, ev.endDt);
-          body.appendChild(renderEvent(ev, c, cols, rangeStart, rangeEnd, containerHeightPx, maxHeightPx));
+        // Ensin yhdistetään toisiaan koskettavat liian lyhyet tapahtumat
+        // ketjuiksi (ks. buildRenderUnits) — layoutColumns saa näin joko
+        // yksittäisiä tapahtumia TAI ketju-"stand-in"-olioita, jotka sillekin
+        // näyttävät ihan tavalliselta ajanjaksolta (startDt/endDt), koska se
+        // ei muuten välitä sisällöstä.
+        const units = buildRenderUnits(solo, rangeStart, rangeEnd, containerHeightPx);
+        const laidOut = layoutColumns(units);
+        laidOut.forEach(({ ev: unit, col: c, cols }) => {
+          const maxHeightPx = maxHeightFor(unit.startDt, unit.endDt);
+          body.appendChild(
+            unit.chain
+              ? renderChainGroup(unit.chain, c, cols, rangeStart, rangeEnd, containerHeightPx, maxHeightPx)
+              : renderEvent(unit, c, cols, rangeStart, rangeEnd, containerHeightPx, maxHeightPx)
+          );
         });
 
         // Jaettu jää piirretään ihan samalla renderEvent()-laatikolla kuin
@@ -628,12 +717,16 @@
 
   // Kuinka korkeaksi laatikko saa KORKEINTAAN kasvaa alle oman todellisen
   // kestonsa (ks. min-height yllä) törmäämättä SEURAAVAAN samalla palstalla
-  // alkavaan tapahtumaan. Ongelma konkretisoituu esim. kahdella peräkkäisellä,
-  // ilman väliä olevalla lyhyellä vuorolla (esim. "MESTIS alkulämpö
-  // tuomarit" klo 17:40–17:50, heti perässä "...pelaajat" klo 17:50–18:10):
-  // 10 minuutin osuus on pikseleinä niin kapea ettei edes .tiny-fontti
-  // (ks. TINY_BELOW_PX) mahdu siihen ilman kasvua, jolloin laatikko muuten
-  // venyisi seuraavan tapahtuman PÄÄLLE. Etsitään siis lähin seuraava
+  // alkavaan tapahtumaan. HUOM: kahden peräkkäisen, ilman väliä olevan
+  // LYHYEN vuoron tapaus (esim. "MESTIS alkulämpö tuomarit" 17:40–17:50,
+  // heti perässä "...pelaajat" 17:50–18:10) ei enää päädy tänne asti
+  // tiukasti rajoitettuna — ne yhdistetään jo ennen tätä yhdeksi ketjuksi
+  // (ks. buildRenderUnits/CHAIN_MERGE_BELOW_PX), koska pelkkä katto ei
+  // riittänyt: 10 minuutin osuus on pikseleinä niin kapea ettei edes
+  // .tiny-fontti (ks. TINY_BELOW_PX) mahtunut siihen luettavasti. Tätä
+  // funktiota tarvitaan silti edelleen — esim. kun lyhyt tapahtuma on
+  // ainoa yksittäinen palstallaan mutta koskettaa suoraan MUUTA (ei ketjuun
+  // kelpuutettua) seuraavaa tapahtumaa. Etsitään siis lähin seuraava
   // tapahtuma joka alkaa VASTA tämän päätyttyä (ei siis ajallisesti
   // päällekkäinen — ne on jo eroteltu omiin sarakkeisiinsa, ks.
   // layoutColumns, eikä niitä pidä rajoittaa tällä), ja käytetään sen
@@ -700,6 +793,68 @@
     timeText.textContent = `${fmtHM(ev.startDt)}–${fmtHM(ev.endDt)}`;
     timeEl.appendChild(timeText);
     block.appendChild(timeEl);
+
+    return block;
+  }
+
+  // Piirtää ketjuksi yhdistetyt, toisiaan koskettavat lyhyet tapahtumat
+  // (ks. buildRenderUnits) YHTENÄ laatikkona: yhteinen osa otsikoista
+  // yläriville (jos sellainen löytyy, ks. splitCommonPrefix) ja jokainen
+  // osa omalle rivilleen OMALLA kellonajallaan (ei siis vain yhtä
+  // yhdistettyä kokonaisaikaa) — näin esim. tuomarit näkevät suoraan että
+  // heidän oma aikansa on vain 17:40–17:50, vaikka koko laatikko kattaa
+  // 17:40–18:10. Laatikon koko/sijainti lasketaan muuten täsmälleen samoin
+  // kuin renderEvent()issä (ks. sielläkin selitetyt top/min-height/max-height).
+  function renderChainGroup(chain, colIndex, colCount, rangeStart, rangeEnd, containerHeightPx, maxHeightPx) {
+    const startDt = chain[0].startDt;
+    const endDt = chain[chain.length - 1].endDt;
+    const top = pctOf(startDt, rangeStart, rangeEnd);
+    const bottom = pctOf(endDt, rangeStart, rangeEnd);
+    const heightPct = Math.max(0.5, bottom - top);
+    const heightPx = (heightPct / 100) * containerHeightPx;
+
+    const widthPct = 100 / colCount;
+    const leftPct = widthPct * colIndex;
+
+    const titles = chain.map((ev) => splitTitle(decodeEntities(ev.title)).title);
+    const { common, rests } = splitCommonPrefix(titles);
+
+    const block = document.createElement("div");
+    // Väri/reunaviiva ensimmäisen osan tilan mukaan (ks. statusClass) —
+    // "chain-group" antaa CSS:ssä oman, listamaisen sisäasettelun.
+    block.className = `event-block chain-group ${statusClass(chain[0].className)}`;
+    block.style.top = `${top}%`;
+    block.style.minHeight = `${heightPx}px`;
+    if (maxHeightPx !== null && maxHeightPx !== undefined) {
+      block.style.maxHeight = `${maxHeightPx}px`;
+      block.style.overflow = "hidden";
+    }
+    block.style.left = `calc(${leftPct}% + 16px)`;
+    block.style.width = `calc(${widthPct}% - 32px)`;
+
+    if (common) {
+      const titleEl = document.createElement("div");
+      titleEl.className = "ev-title";
+      titleEl.textContent = common;
+      block.appendChild(titleEl);
+    }
+
+    const list = document.createElement("div");
+    list.className = "chain-list";
+    chain.forEach((ev, i) => {
+      const row = document.createElement("div");
+      row.className = "chain-item";
+      const label = document.createElement("span");
+      label.className = "chain-item-label";
+      label.textContent = rests[i] || titles[i];
+      const time = document.createElement("span");
+      time.className = "chain-item-time";
+      time.textContent = `${fmtHM(ev.startDt)}–${fmtHM(ev.endDt)}`;
+      row.appendChild(label);
+      row.appendChild(time);
+      list.appendChild(row);
+    });
+    block.appendChild(list);
 
     return block;
   }

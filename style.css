@@ -300,6 +300,94 @@ body {
   display: none;
 }
 
+/* Ketjuksi yhdistetyt, toisiaan koskettavat lyhyet tapahtumat (esim.
+   "alkulämpö tuomarit" + "alkulämpö pelaajat" ilman väliä, ks. app.js
+   buildRenderUnits/renderChainGroup) — YKSI laatikko, jossa yhteinen
+   otsikon osa (jos löytyy) ylimpänä ja jokainen osa omalla rivillään
+   OMALLA kellonajallaan. Vaihtoehto laatikon leikkautumiselle/tyhjäksi
+   jäämiselle, joka syntyisi jos näitä yritettäisiin piirtää erikseen
+   ilman tilaa kummankaan otsikolle (ks. CHAIN_MERGE_BELOW_PX).
+   HUOM: EI justify-content:center — periytyy tarkoituksella .event-block:in
+   flex-start:ista. Jos katto (max-height, ks. computeMaxHeightPx) rajaa
+   laatikon matalammaksi kuin sisältö vaatisi, overflow:hidden leikkaa
+   sisällön SEN kohdan mukaan mistä se ALKAA piirtyä — center leikkaisi
+   symmetrisesti sekä ylhäältä että alhaalta, jolloin juuri ylimpänä oleva
+   yhteinen otsikko (tärkein rivi) katoaisi ensimmäisenä. flex-start pitää
+   otsikon aina näkyvissä ja leikkaa tarvittaessa vain listan ALIMMAISIA
+   (vähemmän kriittisiä) rivejä.
+   Fontit ovat tarkoituksella yhtä pieniä kuin .tiny-tilassa (ks. ylempänä)
+   riippumatta laatikon todellisesta korkeudesta — ketju syntyy JUURI
+   siksi että osat eivät yksinään mahtuneet edes .tiny-kokoon, joten täällä
+   ei ole mitään syytä yrittää isompaa fonttia ensin. */
+.event-block.chain-group {
+  gap: 1px;
+  padding: 1px 6px;
+}
+
+/* EI flex-shrink:tä (0) otsikolle eikä listalle: oletuksena flex-lapsi voi
+   kutistua alle sisältönsä tarvitseman koon KUN sen oma overflow ei ole
+   "visible" (ks. .ev-title: overflow:hidden rivinleikkausta varten) —
+   ilman tätä flexbox puristaisi otsikkoa JA listaa molempia osittain kun
+   tila loppuu kesken, jolloin teksti näyttäisi puolittuneelta/rikkinäiseltä
+   rivin katkaisun sijaan. flex-shrink:0 pakottaa kummankin pitämään oman
+   luonnollisen (pienennetyn fontin mukaisen) korkeutensa, jolloin
+   ulomman laatikon overflow:hidden leikkaa tarvittaessa vain KOKONAISIA
+   rivejä listan ALAOSASTA, ei sotke mitään keskeltä. */
+.event-block.chain-group .ev-title {
+  flex-shrink: 0;
+  font-size: clamp(10px, 1.1vh, 13px);
+  line-height: 1.15;
+  /* Yksi rivi + "..." kahden rivin sijaan (ks. .compact .ev-title) —
+     ennakoitava, pieni korkeus on täällä tärkeämpi kuin koko otsikon
+     näkyminen kokonaisuudessaan. */
+  display: block;
+  -webkit-line-clamp: unset;
+  line-clamp: unset;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chain-list {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  gap: 0;
+  min-width: 0;
+}
+
+.chain-item {
+  display: flex;
+  flex-shrink: 0;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.6em;
+  font-size: clamp(9px, 1vh, 11px);
+  line-height: 1.15;
+  font-weight: 600;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.chain-item-label {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.chain-item-label::before {
+  content: "• ";
+  opacity: 0.7;
+}
+
+.chain-item-time {
+  flex: none;
+  opacity: 0.85;
+  font-variant-numeric: tabular-nums;
+  font-size: clamp(8px, 0.9vh, 10px);
+}
+
 /* Kaikki tapahtumat samalla värillä riippumatta tilasta (lp-reserved/
    lp-waiting/lp-freed) — tilaa ei enää eroteta visuaalisesti. */
 .status-reserved, .status-waiting, .status-freed {
