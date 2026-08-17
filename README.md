@@ -149,3 +149,47 @@ päivitetty. Jos näyttö on joskus ajanut ilman `server.py`:tä, tee
 kioskiselaimeen myös kertaalleen täysi välimuistin tyhjennys / kova
 päivitys — pelkkä otsikon lisääminen ei poista jo tallennettua
 vanhaa versiota.)
+
+## Selaintestit (Playwright)
+
+Sivu itse pysyy tarkoituksella riippuvuuksettomana (ks. yllä), mutta
+`tests/`-hakemistossa on Playwright-selaintestejä aikajanan asettelulle —
+näiden riippuvuudet (`package.json`) koskevat VAIN testien ajamista, eivät
+itse sivua. Testit mockaavat Hokkarit-rajapinnan (ei siis riipu oikeasta
+rajapinnasta eikä mistään tietystä kalenteripäivästä) ja ajavat aidossa
+Chromiumissa 1080×1920-näytöllä (pystyasento) — samalla mittakaavalla kuin oikea TV.
+
+```bash
+npm install
+npx playwright install chromium   # kertaalleen, lataa selaimen
+npm test                          # ajaa kaikki testit (playwright.config.js
+                                   # käynnistää/sammuttaa server.py:n automaattisesti)
+```
+
+Muita hyödyllisiä komentoja:
+
+```bash
+npm run test:headed   # sama, mutta näkyvässä selainikkunassa
+npm run test:ui       # Playwrightin interaktiivinen testieksplorer
+npm run test:report   # avaa viimeisimmän ajon HTML-raportin
+```
+
+**Testidata** (`tests/fixtures.js`): kokoelma "jänniä" reunatapauksia joita
+aikajanan asettelulogiikka joutuu käsittelemään — mm. toisiaan koskettavat
+lyhyet vuorot jotka pitää yhdistää yhdeksi laatikoksi (ks. commit "Yhdistä
+toisiaan koskettavat lyhyet vuorot yhdeksi laatikoksi"), 2-, 3- ja
+useampiosaiset ketjut, ketju jolla ei ole yhteistä otsikon osaa, ketju joka
+koskettaa pitkää vuoroa, jaettu jää (2 ja 3 osapuolta), aidosti päällekkäiset
+vuorot (2 ja 3 saraketta), tavallisen pituiset koskettavat vuorot jotka EIVÄT
+saa ketjuuntua, hyvin pitkä otsikko, vuoro joka alkaa ennen `dayStartHour`:ia,
+vuoro joka jatkuu yli `dayEndHour`:in, tyhjä päivä ja rakenteeltaan
+rikkinäinen rajapintavastaus (`DataShapeError`). Uusi tilanne lisätään
+uutena avaimena `SCENARIOS`-olioon fixtures.js:ssä.
+
+**Yleiset tarkistukset joka skenaariolle** (`tests/board.spec.js`):
+ettei mikään `.event-block` mene päällekkäin toisen kanssa samassa
+sarakkeessa, ja ettei minkään laatikon sisältö leikkaudu pystysuunnassa
+(`scrollHeight` vs. `clientHeight` — juuri se bugiluokka joka aiheutti
+alkuperäisen "otsikko leikkaantuu pois" -tapauksen). Näiden lisäksi
+skenaariokohtaiset testit tarkistavat mm. ketjujen osien lukumäärän ja
+otsikoinnin, jaetun jään yhdistymisen ja sarakemäärän.

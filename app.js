@@ -624,6 +624,15 @@
       return;
     }
 
+    // Ketjulaatikot joiden mahtuminen pitää tarkistaa (ks. fitChainGroup)
+    // VASTA kun ne ovat oikeasti kiinni näkyvässä DOM-puussa — palstan
+    // (.resource-col) ja sitä myötä .resource-col-body:n oma appendChild
+    // el.columns:iin tapahtuu vasta tämän resources.forEach-silmukan
+    // LOPUSSA (ks. alla), joten scrollHeight/clientHeight lukisivat
+    // molemmat nollaa jos mittaus tehtäisiin kesken silmukkaa — irrallisella
+    // (vielä liittämättömällä) elementillä ei ole mitään renderöityä kokoa.
+    const chainNodesToFit = [];
+
     resources.forEach((lp) => {
       const col = document.createElement("div");
       col.className = "resource-col";
@@ -670,11 +679,13 @@
         const laidOut = layoutColumns(units);
         laidOut.forEach(({ ev: unit, col: c, cols }) => {
           const maxHeightPx = maxHeightFor(unit.startDt, unit.endDt);
-          body.appendChild(
-            unit.chain
-              ? renderChainGroup(unit.chain, c, cols, rangeStart, rangeEnd, containerHeightPx, maxHeightPx)
-              : renderEvent(unit, c, cols, rangeStart, rangeEnd, containerHeightPx, maxHeightPx)
-          );
+          if (unit.chain) {
+            const node = renderChainGroup(unit.chain, c, cols, rangeStart, rangeEnd, containerHeightPx, maxHeightPx);
+            body.appendChild(node);
+            chainNodesToFit.push(node); // mitataan vasta kun koko palsta on liitetty DOM:iin, ks. alla
+          } else {
+            body.appendChild(renderEvent(unit, c, cols, rangeStart, rangeEnd, containerHeightPx, maxHeightPx));
+          }
         });
 
         // Jaettu jää piirretään ihan samalla renderEvent()-laatikolla kuin
@@ -695,6 +706,11 @@
 
       el.columns.appendChild(col);
     });
+
+    // Vasta NYT kaikki palstat (ja niiden sisällä ketjulaatikot) ovat oikeasti
+    // kiinni näkyvässä DOM-puussa, joten scrollHeight/clientHeight-mittaus
+    // (ks. fitChainGroup) antaa todellisia lukuja eikä pelkkää nollaa.
+    chainNodesToFit.forEach(fitChainGroup);
   }
 
   // Ei enää keinotekoista vähimmäiskorkeutta (aiempi MIN_BLOCK_PX): laatikon
@@ -857,6 +873,28 @@
     block.appendChild(list);
 
     return block;
+  }
+
+  // Karsii ketjulaatikon sisältöä jos se EI todellisuudessa mahtunut
+  // annettuun kattoon (ks. computeMaxHeightPx) — esim. kolme+ osaa
+  // sisältävä ketju ei aina mahdu edes .tiny-kokoisilla fonteilla, vaikka
+  // kaksiosainen tyypillisesti mahtuu (ks. CHAIN_MERGE_BELOW_PX). Mitataan
+  // TODELLINEN, jo layoutatun DOM-elementin scrollHeight/clientHeight sen
+  // sijaan että yritettäisiin ennustaa fonttien/rivinvälien tarkkaa
+  // pikselikorkeutta etukäteen — luotettavampaa ja pysyy ajan tasalla vaikka
+  // CSS:ää muutettaisiin myöhemmin. Pudotetaan ensin yhteinen otsikkorivi
+  // (ks. splitCommonPrefix): se on vähemmän kriittinen kuin osien OMAT
+  // nimet+kellonajat, jotka näkyvät joka tapauksessa täysinä riveinä (ks.
+  // renderChainGroup — niillä on flex-shrink:0, eivät puristu epäselviksi).
+  // Jos ei mahdu SILTIKÄÄN edes ilman otsikkoa (hyvin harvinainen ääritapaus,
+  // esim. 5+ osan ketju hyvin ahtaassa katossa), jäljelle jää sama viimeinen
+  // turvaverkko kuin muillakin laatikoilla: overflow:hidden leikkaa listan
+  // ALIMMAISET (vähiten kriittiset, ajallisesti kauimpana nyt-hetkestä eivät
+  // aina, mutta joka tapauksessa jonkin) rivit kokonaisina, ei sotkeasti.
+  function fitChainGroup(block) {
+    if (block.scrollHeight <= block.clientHeight + 1) return;
+    const title = block.querySelector(".ev-title");
+    if (title) title.remove();
   }
 
   // Tosi kun koppijakotaulu (kopit.js) on ilmoittanut asettuneensa lopulliseen
