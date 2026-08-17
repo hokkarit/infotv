@@ -3,6 +3,23 @@
 
 const { LPS } = require("./fixtures");
 
+// Lukitsee selaimen "nyt"-ajan kiinteästi keskipäivään (12:00) — PÄIVÄMÄÄRÄ
+// (vuosi/kk/pv) pidetään kuitenkin oikeana, koska fixtures.js:n todayYMD()
+// rakentaa tapahtumat sen mukaan (ks. sen kommentti). Ilman tätä testit
+// alkaisivat epäonnistua aina kun testit ajetaan CONFIG.dayStartHour/
+// dayEndHour-välin (07-22, ks. app.js) ULKOPUOLELLA — esim. illalla klo 22
+// jälkeen "nyt"-viiva pysyisi pysyvästi piilossa (ks. app.js
+// positionNowLine), jolloin waitForBoardReady() alla ei koskaan täyttyisi
+// ja jokainen testi aikakatkeaisi 30 s:n jälkeen. app.js:n getEffectiveNow()
+// ottaa kellonajan AINA oikeasta järjestelmäkellosta (ks. sen kommentti),
+// joten pelkkä ?date=-parametri ei riitä korjaamaan tätä — kello pitää
+// jäädyttää selainpuolella asti.
+async function freezeClockToDaytime(page) {
+  const real = new Date();
+  const noon = new Date(real.getFullYear(), real.getMonth(), real.getDate(), 12, 0, 0);
+  await page.clock.install({ time: noon });
+}
+
 // Mockaa sekä Hokkarit-rajapinnan (lps + kummankin palstan reservations)
 // että pukukoppitaulun (kopit.js) ulkoisen Google Sheets -haun. Jälkimmäinen
 // keskeytetään tarkoituksella (route.abort()) — emme halua testien riippuvan
@@ -10,6 +27,8 @@ const { LPS } = require("./fixtures");
 // ja kopit.js laukaisee "koppijako:initial-load"-tapahtuman joka tapauksessa
 // myös virhepolulla (ks. kopit.js refreshData() finally-lohko).
 async function mockScenario(page, scenario) {
+  await freezeClockToDaytime(page);
+
   await page.route("**/api/lpreservations/lps", (route) => route.fulfill({ json: LPS }));
 
   await page.route("**/api/lpreservations/reservations/129*", (route) =>
