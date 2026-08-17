@@ -280,10 +280,12 @@ body {
 }
 
 /* Hyvin lyhyet tapahtumat (esim. 15 min alkulämpö, ks. app.js TINY_BELOW_PX):
-   .compact ei enää riitä — pienennetään fontti entisestään ja piilotetaan
-   kellonajan ikoni (turha koriste, vie tilaa), jotta laatikon vaatima
-   vähimmäiskorkeus lähenee sen todellista (lyhyttä) kestoa eikä laatikko
-   tulvi yhtä paljon seuraavan tunnin puolelle. */
+   .compact ei enää riitä — pienennetään fontti entisestään, jotta laatikon
+   vaatima vähimmäiskorkeus lähenee sen todellista (lyhyttä) kestoa eikä
+   laatikko tulvi yhtä paljon seuraavan tunnin puolelle. Kellonaikaikoni
+   pidetään silti näkyvissä (vain pienennettynä) — se on sama visuaalinen
+   vihje kuin muissakin laatikoissa, eikä sen piilottaminen tässä säästänyt
+   käytännössä mitattavaa tilaa. */
 .event-block.tiny {
   padding: 1px 6px;
 }
@@ -297,7 +299,8 @@ body {
 }
 
 .event-block.tiny .ev-time-icon {
-  display: none;
+  width: 0.9em;
+  height: 0.9em;
 }
 
 /* Ketjuksi yhdistetyt, toisiaan koskettavat lyhyet tapahtumat (esim.
