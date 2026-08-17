@@ -373,7 +373,7 @@
 
     const header = document.createElement("div");
     header.className = "koppi-row koppi-row-header";
-    ["Koppi", "Joukkue", "Sijainti"].forEach((label) => {
+    ["Koppi", "Joukkue", "Kopin sijainti"].forEach((label) => {
       const cell = document.createElement("div");
       cell.className = "koppi-cell";
       cell.textContent = label;
