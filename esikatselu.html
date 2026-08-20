@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="fi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>Infotaulu — esikatselu</title>
+<style>
+  /* Tämä sivu ei ole itse infotaulu, vaan pieni "kehys" jonka sisällä
+     index.html ajetaan OIKEASSA fyysisessä koossaan (1080x1920, ks.
+     playwright.config.js-kommentti pystyasennosta) ja koko kehys
+     skaalataan CSS transform:illa mahtumaan katselulaitteen ruudulle.
+     Näin puhelimella (tai millä tahansa selaimella) näkyy TARKALLEEN
+     sama asettelu kuin oikealla infotaulun näytöllä — ei se miten
+     index.html sattuisi rivittymään puhelimen omaan kapeaan/leveään
+     viewporttiin, jos sitä avaisi suoraan. */
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    width: 100%;
+    background: #05070d;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  #stage {
+    position: relative;
+    width: 1080px;
+    height: 1920px;
+    transform-origin: center center;
+    border-radius: 18px;
+    overflow: hidden;
+    box-shadow:
+      0 0 0 6px #11151f,
+      0 20px 60px rgba(0, 0, 0, 0.6);
+    /* Vältetään "flash of unstyled/empty stage" ennen ensimmäistä fit()-kutsua. */
+    visibility: hidden;
+  }
+
+  #stage.ready {
+    visibility: visible;
+  }
+
+  #stage iframe {
+    display: block;
+    width: 1080px;
+    height: 1920px;
+    border: 0;
+  }
+
+  #hint {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: max(8px, env(safe-area-inset-bottom));
+    text-align: center;
+    color: #6b7280;
+    font: 12px/1.4 system-ui, -apple-system, sans-serif;
+    pointer-events: none;
+  }
+</style>
+</head>
+<body>
+
+  <div id="stage">
+    <iframe id="frame" title="Infotaulu (esikatselu)"></iframe>
+  </div>
+  <div id="hint">Esikatselu — oikea infotaulu on 1080×1920 (pysty-FullHD)</div>
+
+  <script>
+    (function () {
+      "use strict";
+      var stage = document.getElementById("stage");
+      var frame = document.getElementById("frame");
+
+      // Samasta originesta (esikatselu.html ja index.html samalla
+      // palvelimella) -> ei CORS/CSP-ongelmia. Query-parametrit (esim.
+      // ?date=YYYY-MM-DD testipäivän pakottamiseen) kulkevat läpi sellaisenaan.
+      frame.src = "index.html" + location.search;
+
+      function fit() {
+        var margin = 24; // pieni turvaväli reunoihin (esim. puhelimen sovelluspalkit)
+        var availW = window.innerWidth - margin * 2;
+        var availH = window.innerHeight - margin * 2;
+        var scale = Math.min(availW / 1080, availH / 1920);
+        stage.style.transform = "scale(" + scale + ")";
+        stage.classList.add("ready");
+      }
+
+      fit();
+      window.addEventListener("resize", fit);
+      window.addEventListener("orientationchange", fit);
+    })();
+  </script>
+
+</body>
+</html>
